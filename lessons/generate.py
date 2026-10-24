@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from catalog import LESSONS, PREFIX, HELPERS
 from burn_catalog import RUST
+from causal_guide import GUIDE
 from torch_runtime import runtime, device_info
 from mlx_catalog import MLX
 from display_source import listing, annotate_rust, TORCH_RUNTIMES, MLX_RUNTIMES
@@ -35,6 +36,8 @@ for node in leaves(map_data['root']):
         'Проведи второй опыт: '+lesson['exercise'],
         'Создай заметку на холсте: запиши изменение, оба результата и свой вывод.']
     lesson['sources'] = list(source_links)
+    if id == 'causal':
+        lesson['guide'] = GUIDE
     if id in RUST:
         code = annotate_rust(RUST[id]['code'])
         lesson['rust']={**RUST[id], 'code': code, 'display': {'body': code}}

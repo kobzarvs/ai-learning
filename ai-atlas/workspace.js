@@ -5,9 +5,9 @@ function create(o){
  const $=id=>document.getElementById(id),canvas=$('canvas'),world=$('workspace-world');
  const art=(id,options)=>scope.AtlasArt?.render(id,options)||'';
  const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
- let launchMode='local',currentLaunch=null;
+ let launchMode='local',currentLaunch=null,exerciseLanguage='python';
  const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
- const causalExperiment={effect:0,intervention:3};
+ const causalExperiment={minutesSaved:4,assignment:'biased'};
  const lessonVisual=id=>scope.AtlasLessonVisuals?.render(id,causalExperiment)||'';
  const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
  try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст. Импортируй резервную копию.');}
@@ -18,8 +18,10 @@ function create(o){
  function render(){
   if(!active)return;
   const b=board();world.innerHTML=b.groups.map(g=>`<section class="space-group" data-group="${esc(g.id)}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px"><header><button class="group-handle" data-drag-group="${esc(g.id)}" title="Переместить группу">⠿</button><button class="group-name" data-select-group="${esc(g.id)}">${esc(g.title)}</button><button data-group-menu="${esc(g.id)}" title="Изменить группу" aria-label="Изменить группу ${esc(g.title)}">•••</button></header></section>`).join('')+b.cards.map(c=>{
+   const topic=c.type==='topic'?index.get(c.ref):null;
+   const title=topic?.name||c.title,body=topic?.what||c.body;
    const type={article:'Статья',topic:'Подпространство',example:'Python + PyTorch',rust:'Rust + Burn',exercise:'Практика',note:'Моя заметка'}[c.type];
-   return `<article class="space-card type-${c.type}" data-card="${esc(c.id)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"><header><span>${type}</span><button data-drag-card="${esc(c.id)}" aria-label="Переместить ${esc(c.title)}" title="Перетащи карточку. Стрелки — сдвиг на 20, Alt + стрелки — на 100">⠿</button></header><button class="space-card-body" data-read="${esc(c.id)}"><div class="space-card-heading">${art(c.type==='note'?'projects':c.ref,{decorative:true})}<h2>${c.type==='note'?esc(c.title):rich(c.title)}</h2></div><p>${c.type==='note'?esc(c.body):rich(c.body)}</p><span>${c.type==='topic'?'Войти в пространство':'Открыть'} <b>↗</b></span></button></article>`;
+   return `<article class="space-card type-${c.type}" data-card="${esc(c.id)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"><header><span>${type}</span><button data-drag-card="${esc(c.id)}" aria-label="Переместить ${esc(title)}" title="Перетащи карточку. Стрелки — сдвиг на 20, Alt + стрелки — на 100">⠿</button></header><button class="space-card-body" data-read="${esc(c.id)}"><div class="space-card-heading">${art(c.type==='note'?'projects':c.ref,{decorative:true})}<h2>${c.type==='note'?esc(c.title):rich(title)}</h2></div><p>${c.type==='note'?esc(c.body):rich(body)}</p><span>${c.type==='topic'?'Войти в пространство':'Открыть'} <b>↗</b></span></button></article>`;
   }).join('')+'<div id="selection-rect" class="selection-rect" hidden></div>';
   redrawSelection();
  }
@@ -69,11 +71,11 @@ function create(o){
   'Задача':'target','Что будем делать руками':'target','Что покажет этот код':'target',
   'Порядок работы':'steps','Как это устроено':'mechanism','Где пригодится':'target',
   'Представь такую задачу':'example','Пример применения':'example','Что важно понимать':'info','На что смотреть в результате':'result',
-  'Измени одно условие':'experiment','Как оценить результат':'result','Границы этого опыта':'info',
+  'Измени одно условие':'experiment','Проверь себя':'experiment','Как оценить результат':'result','Границы этого опыта':'info',
   'Подготовка и запуск':'terminal','Разбор':'book','Ожидаемый результат':'result',
   'Попробуй изменить':'experiment','Что пример не доказывает':'info','Первоисточники':'sources','Темы внутри':'topics'
  };
- const taskTitles=new Set(['Задача','Что будем делать руками','Что покажет этот код']);
+ const taskTitles=new Set(['Задача','Что будем делать руками','Что покажет этот код','Измени одно условие']);
  const sectionHeading=title=>`<h2>${scope.AtlasUI?.icon(sectionKinds[title])||''}<span>${esc(title)}</span></h2>`;
  function textSection(title,body){return body?`<section class="reading-section${taskTitles.has(title)?' task-brief':''}">${sectionHeading(title)}<p>${rich(body,true)}</p></section>`:'';}
 
@@ -91,23 +93,32 @@ function create(o){
 
  function read(card,tab){
   if(card.type==='topic'){enter(card.ref);return;}
+  if(readerCard?.ref!==card.ref)exerciseLanguage='python';
   readerCard=card;const n=index.get(card.ref)||index.get(active),l=lessons[n.id],mode=tab||({example:'python',rust:'rust',exercise:'exercise',note:'note'}[card.type]||'article');
+  if(['python','rust','mlx'].includes(mode))exerciseLanguage=mode;
   $('reader-title').innerHTML=art(card.type==='note'?'projects':n.id,{decorative:true})+'<span>'+esc(card.type==='note'?card.title:n.name)+'</span>';
-  $('reader-tabs').innerHTML=card.type==='note'?'':[['article','Разобраться'],...(l?[['python','Python'],...(l.rust?[['rust','Rust + Burn']]:[]),...(l.mlx?[['mlx','Python + MLX']]:[]),['exercise','Эксперимент']]:[])].map(([key,label])=>`<button data-reader-tab="${key}" aria-pressed="${key===mode}">${label}</button>`).join('');
+  $('reader-tabs').innerHTML=card.type==='note'?'':[['article','Разобраться'],...(l?.guide?[['methods','Методы и случаи']]:[]),...(l?[['python','Python'],...(l.rust?[['rust','Rust + Burn']]:[]),...(l.mlx?[['mlx','Python + MLX']]:[]),['exercise',n.id==='causal'?'Эксперимент':'Задание']]:[])].map(([key,label])=>`<button data-reader-tab="${key}" aria-pressed="${key===mode}">${label}</button>`).join('');
   let html='';
   if(mode==='note'){html=`<div class="personal-note">${esc(card.body||'Пока пусто. Добавь свои наблюдения.').replace(/\n/g,'<br>')}</div><button class="inline-primary" data-edit-note="${esc(card.id)}">Редактировать заметку</button>`;}
   else if(mode==='article'){
    const normalize=text=>String(text||'').replace(/\s+/g,' ').trim();
    const sharedExample=normalize(n.tasks)===normalize(n.example);
    html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',sharedExample?'':n.tasks)}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
-   if(l)html+=textSection('Что будем делать руками',l.goal)+lessonVisual(n.id)+textSection('На что смотреть в результате',l.expected)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
+   if(l)html+=textSection('Что будем делать руками',l.goal)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
+   if(l?.guide)html+=`<div class="reader-next"><button class="inline-primary" data-reader-tab="exercise">Открыть опыт с графиками →</button><button class="inline-primary" data-reader-tab="methods">Изучить методы и реальные случаи →</button></div>`;
    if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
+  }else if(l?.guide&&mode==='methods'){
+   html=scope.AtlasLessonGuide.render(l.guide);
   }else if(l&&mode==='exercise'){
-   html=textSection('Задача',l.goal)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol>${l.steps.map(s=>`<li>${rich(s,true)}</li>`).join('')}</ol></section>`+textSection('Измени одно условие',l.exercise)+lessonVisual(n.id)+textSection('Как оценить результат',l.expected)+textSection('Границы этого опыта',l.limits)+`<button class="inline-primary" id="exercise-note">Создать заметку с планом опыта</button>`;
+   const exerciseExample=l[exerciseLanguage]||l;
+   const exerciseLabel={python:'Python',rust:'Rust + Burn',mlx:'Python + MLX'}[exerciseLanguage];
+   html=(n.id==='causal'?lessonVisual(n.id)+textSection('Проверь себя','Сначала задай экономию 4 минуты и выдачу инструкции на сложных заданиях. Почему сравнение групп показывает замедление? Переключи назначение на случайное. Затем отключи экономию: чему должны стать близки оба результата? Сформулируй вывод до открытия Python.'):
+    textSection('Измени одно условие',exerciseExample.exercise)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol><li>Перед запуском запиши, как, по твоему предположению, изменится результат.</li><li>Во вкладке ${exerciseLabel} запусти исходный вариант и сохрани вывод.</li><li>Внеси указанное изменение, повтори запуск и сравни результаты.</li><li>Объясни различие: чем наблюдение подтверждает или опровергает твоё предположение?</li></ol></section>`)+`<button class="inline-primary" id="exercise-note">Записать гипотезу и результат</button>`;
   }else if(l&&(mode==='python'||mode==='rust'||mode==='mlx')){
    const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
    html=`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal||l.goal)+launchGuide(n.id,l,mode);
-   html+=textSection('Разбор',example.explanation||l.explanation)+lessonVisual(n.id)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Попробуй изменить',example.exercise||l.exercise)+textSection('Что пример не доказывает',example.limits||l.limits);
+   html+=textSection('Разбор',example.explanation||l.explanation)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Что пример не доказывает',example.limits||l.limits);
+   html+=`<button class="inline-primary" data-reader-tab="exercise">${n.id==='causal'?'Открыть опыт с графиками':'Перейти к самостоятельному заданию'} →</button>`;
    if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
    html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
   }
@@ -115,11 +126,15 @@ function create(o){
    const sources=[...(n.sources||[]).map(k=>o.sources[k]).filter(Boolean),...(l?.sources||[])];
    html+=`<section class="reading-section reading-sources">${sectionHeading('Первоисточники')}${sources.map(([name,url])=>/^https?:\/\//.test(url)?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} ↗</a>`:'').join('')}</section>`;
   }
+  $('reader').classList.toggle('reader-wide',n.id==='causal'&&mode!=='note');
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
  }
  function refreshLaunch(){
-  const content=$('reader-content'),scroll=content.scrollTop;
+  const content=$('reader-content'),scroll=content.scrollTop,charts=content.querySelector('.lesson-charts'),horizontal=charts?.scrollLeft||0;
+  const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
   read(readerCard,$('reader').dataset.tab);content.scrollTop=scroll;
+  const updated=content.querySelector('.lesson-charts');if(updated)updated.scrollLeft=horizontal;
+  if(focusKey)[...content.querySelectorAll('button')].find(button=>button.dataset[focusKey]===focusValue)?.focus({preventScroll:true});
  }
  function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
  function codeFor(id){return currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
@@ -164,14 +179,15 @@ function create(o){
   if(b.dataset.selectGroup){selectedGroup=b.dataset.selectGroup;selection.clear();redrawSelection();}
   if(b.dataset.groupMenu)editor('group',b.dataset.groupMenu);
   if(b.dataset.editNote)editor('note',b.dataset.editNote);
+  if(b.dataset.guideJump&&readerCard){const target=$(b.dataset.guideJump);if(target?.classList.contains('guide-method'))target.open=true;target?.scrollIntoView?.({block:'start'});}
   if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
-  if(readerCard?.ref==='causal'){
-   if(b.dataset.causalEffect!==undefined&&[0,0.3,0.6].includes(Number(b.dataset.causalEffect))){causalExperiment.effect=Number(b.dataset.causalEffect);refreshLaunch();}
-   if(b.dataset.causalIntervention!==undefined&&[-3,1,3].includes(Number(b.dataset.causalIntervention))){causalExperiment.intervention=Number(b.dataset.causalIntervention);refreshLaunch();}
+  if(readerCard?.ref==='causal'&&$('reader').dataset.tab==='exercise'){
+   if(b.dataset.causalSaving!==undefined&&[0,4,8].includes(Number(b.dataset.causalSaving))){causalExperiment.minutesSaved=Number(b.dataset.causalSaving);refreshLaunch();}
+   if(['biased','random'].includes(b.dataset.causalAssignment)){causalExperiment.assignment=b.dataset.causalAssignment;refreshLaunch();}
   }
   if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';refreshLaunch();}
   if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;refreshLaunch();}}
-  if(b.id==='exercise-note'){const l=lessons[active];closeReader();editor('note');$('editor-title').value='Опыт: '+index.get(active).name;$('editor-body').value='Мой вопрос\n'+l.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
+  if(b.id==='exercise-note'){const n=index.get(readerCard?.ref||active),l=lessons[n.id],example=l[exerciseLanguage]||l;closeReader();editor('note');$('editor-title').value='Опыт: '+n.name;$('editor-body').value='Мой вопрос\n'+example.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
   if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>{b.textContent='Скопировано ✓';setTimeout(()=>b.textContent='Копировать',1800);},()=>{b.textContent='Используй «Скачать»';});}else b.textContent='Используй «Скачать»';}
   if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':id==='rust'?'main.rs':['python','mlx'].includes(id)?filename:id+'.txt',codeFor(id));}
   if(b.dataset.addTopic){checkpoint();const n=index.get(b.dataset.addTopic),v=getView(),c=C.addNote(board(),n.name,n.what,{x:(canvas.clientWidth/2-v.x)/v.scale-180,y:(canvas.clientHeight/2-v.y)/v.scale-115},selectedGroup);c.type='topic';c.ref=n.id;$('topic-picker').close();save();render();}

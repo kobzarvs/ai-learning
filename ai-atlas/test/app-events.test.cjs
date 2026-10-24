@@ -29,7 +29,7 @@ function setup({spaces=false}={}){
  doc.createElement=tag=>{const el=new Element('',tag.toUpperCase());el.click=()=>downloads.push({name:el.download,blob:blobs.get(el.href)});return el;};
  const context={structuredClone,Blob,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
  win.AtlasCore=C;win.ATLAS_DATA=data;win.innerWidth=1440;win.innerHeight=900;
- if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
+ if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
  function fire(type,target,props={}){
   const e={type,target,button:0,pointerId:1,clientX:100,clientY:100,detail:1,key:'',code:'',shiftKey:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;},stopImmediatePropagation(){this.stopped=true;this.immediate=true;},...props};
@@ -132,12 +132,12 @@ test('topic opens a separate canvas; a lesson opens the full reader and Back res
  assert.equal(s.elements.get('world').hidden,false);
  assert.equal(s.elements.get('world').style.transform,before);
 });
-test('exercise sections have distinct icons and the task is a separate callout',()=>{
+test('assignment highlights the requested change and keeps only its own steps and sources',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);
  s.fire('click',s.make('exercise','BUTTON',s.canvas,{read:'exercise:cnn'}));
  const html=s.elements.get('reader-content').innerHTML;
- assert.match(html,/<section class="reading-section task-brief"><h2><span class="section-icon icon-target"/);
- for(const kind of ['steps','experiment','result','info','sources'])assert.match(html,new RegExp('section-icon icon-'+kind));
+ assert.match(html,/<section class="reading-section task-brief"><h2><span class="section-icon icon-experiment"/);
+ for(const kind of ['steps','experiment','sources'])assert.match(html,new RegExp('section-icon icon-'+kind));
  assert.equal((html.match(/<h2>/g)||[]).length,(html.match(/section-icon/g)||[]).length);
 });
 test('every topic article shows shared application/example text once and preserves distinct content',()=>{
@@ -220,28 +220,52 @@ test('Shift wheel and Shift release while dragging preserve Pan inside topic spa
  const state=JSON.parse(s.storage.get('ai-atlas-workspaces-v1'));
  assert.equal(state.boards.cnn.cards[0].x,80,'pan must not move a card');
 });
-test('causal charts respond to experiment controls and preserve scroll and settings across reader tabs',()=>{
+test('causal tabs separate concepts, methods, Python code and interactive charts; control changes preserve scroll',()=>{
  const s=setup({spaces:true});
  s.fire('click',s.make('causal-topic','BUTTON',s.canvas,{open:'causal'}));
  s.fire('click',s.make('causal-article','BUTTON',s.canvas,{read:'article:causal'}));
- const content=s.elements.get('reader-content');
- assert.match(content.innerHTML,/Наглядный опыт: связь и причина/);
+ const content=s.elements.get('reader-content'),reader=s.elements.get('reader');
+ assert.equal(reader.classes.has('reader-wide'),true);
+ assert.match(content.innerHTML,/Сотрудникам дают новую инструкцию/);
+ assert.doesNotMatch(content.innerHTML,/lesson-visual|causal-scatter-title/);
+ s.fire('click',s.make('experiment','BUTTON',null,{readerTab:'exercise'}));
+ assert.match(content.innerHTML,/Ускоряет ли новая инструкция работу/);
+ assert.doesNotMatch(content.innerHTML,/launch-guide|code-block|Создай окружение/);
  const initial=content.innerHTML;
- content.scrollTop=930;
- s.fire('click',s.make('direct-effect','BUTTON',null,{causalEffect:'0.3'}));
- assert.equal(content.scrollTop,930);
+ content.scrollTop=230;
+ let chart={scrollLeft:140},markup=content.innerHTML;
+ Object.defineProperty(content,'innerHTML',{get:()=>markup,set:value=>{markup=value;chart={scrollLeft:0};}});
+ content.querySelector=selector=>selector==='.lesson-charts'?chart:null;
+ s.fire('click',s.make('saving','BUTTON',null,{causalSaving:'8'}));
+ assert.equal(content.scrollTop,230);
+ assert.equal(chart.scrollLeft,140);
  assert.notEqual(content.innerHTML,initial);
- assert.match(content.innerHTML,/data-causal-effect="0.3" aria-pressed="true"/);
- assert.match(content.innerHTML,/Линия наклонена/);
- s.fire('click',s.make('intervention','BUTTON',null,{causalIntervention:'1'}));
- assert.equal(content.scrollTop,930);
- assert.match(content.innerHTML,/data-causal-intervention="1" aria-pressed="true"/);
+ assert.match(content.innerHTML,/data-causal-saving="8" aria-pressed="true"/);
+ s.fire('click',s.make('assignment','BUTTON',null,{causalAssignment:'random'}));
+ assert.equal(content.scrollTop,230);
+ assert.match(content.innerHTML,/data-causal-assignment="random" aria-pressed="true"/);
  s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
- assert.match(content.innerHTML,/data-causal-effect="0.3" aria-pressed="true"/);
- assert.match(content.innerHTML,/data-causal-intervention="1" aria-pressed="true"/);
  assert.match(content.innerHTML,/correlation_matrix/);
- s.fire('click',s.make('no-effect','BUTTON',null,{causalEffect:'0'}));
- assert.match(content.innerHTML,/Линия горизонтальна/);
+ assert.doesNotMatch(content.innerHTML,/causal-scatter-title|data-causal-saving/);
+ s.fire('click',s.make('methods','BUTTON',null,{readerTab:'methods'}));
+ assert.match(content.innerHTML,/Синтетический контроль/);
+ assert.match(content.innerHTML,/eBay/);
+ assert.doesNotMatch(content.innerHTML,/code-block|causal-scatter-title/);
+ s.fire('click',s.make('experiment-again','BUTTON',null,{readerTab:'exercise'}));
+ assert.match(content.innerHTML,/data-causal-saving="8" aria-pressed="true"/);
+ assert.match(content.innerHTML,/data-causal-assignment="random" aria-pressed="true"/);
+ s.fire('click',s.make('no-effect','BUTTON',null,{causalSaving:'0'}));
+ assert.match(content.innerHTML,/Известный эффект: 0 мин/);
+});
+test('a standalone assignment follows the selected framework without duplicating the launch instructions',()=>{
+ const s=setup({spaces:true});s.fire('click',s.button);
+ s.fire('click',s.make('article','BUTTON',s.canvas,{read:'article:cnn'}));
+ assert.equal(s.elements.get('reader').classes.has('reader-wide'),false);
+ s.fire('click',s.make('rust','BUTTON',null,{readerTab:'rust'}));
+ s.fire('click',s.make('exercise','BUTTON',null,{readerTab:'exercise'}));
+ const content=s.elements.get('reader-content').innerHTML;
+ assert.match(content,/Во вкладке Rust \+ Burn запусти/);
+ assert.doesNotMatch(content,/launch-guide|code-block|Ожидаемый результат/);
 });
 test('dragging a card moves only the card and saves its new coordinates',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);s.elements.get('select-tool').onclick();
