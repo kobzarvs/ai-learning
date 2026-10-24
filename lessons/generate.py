@@ -16,7 +16,7 @@ source_links = [
  ['PyTorch: текущий стабильный релиз', 'https://github.com/pytorch/pytorch/releases/latest'],
 ]
 meta = dict(date='24.10.2026', torch='2.14.1', burn='0.22.1',
- validation='Примеры написаны для PyTorch 2.14.1 и Burn 0.22.1. Локальная проверка выполнена на доступных PyTorch 2.14.0 и Burn 0.22.0; запуск точных закреплённых версий выполняет проверка репозитория. Численные результаты могут немного различаться.')
+ validation='Все 113 Python-примеров выполнены на PyTorch 2.14.1, все 25 Rust-примеров собраны и выполнены на Burn 0.22.1 в проверке GitHub от 24.10.2026. Проверка выполнялась на CPU. Численные результаты на другом устройстве могут немного различаться.', validationUrl='https://github.com/kobzarvs/ai-learning/actions/runs/40081392239')
 topics = {}
 for node in leaves(map_data['root']):
     id=node['id']; original=LESSONS[id]; lesson={k:v for k,v in original.items() if k!='body'}
