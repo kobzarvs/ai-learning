@@ -171,6 +171,26 @@ test('real readers close on backdrop clicks while unsaved note input survives ba
  s.fire('pointerdown',editor,{clientX:-10});s.fire('click',editor,{clientX:-10});assert.equal(editor.open,true);
  assert.equal(s.fire('cancel',editor).defaultPrevented,true);assert.equal(s.elements.get('editor-title').value,'Не потерять');
 });
+test('switching launch settings preserves scroll while updating the selected option',()=>{
+ const s=setup({spaces:true});s.fire('click',s.button);
+ s.fire('click',s.make('python','BUTTON',s.canvas,{read:'python:cnn'}));
+ const content=s.elements.get('reader-content');
+ const choose=(key,value)=>{
+  content.scrollTop=640;
+  s.fire('click',s.make('option','BUTTON',null,{[key]:value}));
+  assert.equal(content.scrollTop,640,key+': '+value);
+  const attr=key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase());
+  assert.match(content.innerHTML,new RegExp('data-'+attr+'="'+value+'" aria-pressed="true"'));
+ };
+ for(const device of ['cuda','mps','cpu','mps','cpu'])choose('launchDevice',device);
+ for(const platform of ['windows','unix'])choose('launchPlatform',platform);
+ for(const mode of ['container','local'])choose('launchMode',mode);
+ s.fire('click',s.make('rust','BUTTON',null,{readerTab:'rust'}));
+ assert.equal(content.scrollTop,0,'a different lesson tab starts at the beginning');
+ for(const device of ['cuda','metal','cpu'])choose('launchDevice',device);
+ s.fire('click',s.make('article','BUTTON',s.canvas,{read:'article:cnn'}));
+ assert.equal(content.scrollTop,0,'opening another card starts at the beginning');
+});
 test('Shift wheel and Shift release while dragging preserve Pan inside topic spaces',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);
  const handle=s.make('handle','BUTTON',s.canvas,{dragCard:'article:cnn'});

@@ -116,6 +116,10 @@ function create(o){
   }
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
  }
+ function refreshLaunch(){
+  const content=$('reader-content'),scroll=content.scrollTop;
+  read(readerCard,$('reader').dataset.tab);content.scrollTop=scroll;
+ }
  function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
  function codeFor(id){return currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
 
@@ -160,9 +164,9 @@ function create(o){
   if(b.dataset.groupMenu)editor('group',b.dataset.groupMenu);
   if(b.dataset.editNote)editor('note',b.dataset.editNote);
   if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
-  if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';const scroll=$('reader-content').scrollTop;read(readerCard,$('reader').dataset.tab);$('reader-content').scrollTop=scroll;}
-  if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;read(readerCard,mode);}}
-  if(b.dataset.launchPlatform&&readerCard){launchPlatform=b.dataset.launchPlatform==='windows'?'windows':'unix';const scroll=$('reader-content').scrollTop;read(readerCard,$('reader').dataset.tab);$('reader-content').scrollTop=scroll;}
+  if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';refreshLaunch();}
+  if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;refreshLaunch();}}
+  if(b.dataset.launchPlatform&&readerCard){launchPlatform=b.dataset.launchPlatform==='windows'?'windows':'unix';refreshLaunch();}
   if(b.id==='exercise-note'){const l=lessons[active];closeReader();editor('note');$('editor-title').value='Опыт: '+index.get(active).name;$('editor-body').value='Мой вопрос\n'+l.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
   if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>{b.textContent='Скопировано ✓';setTimeout(()=>b.textContent='Копировать',1800);},()=>{b.textContent='Используй «Скачать»';});}else b.textContent='Используй «Скачать»';}
   if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':id==='rust'?'main.rs':['python','mlx'].includes(id)?filename:id+'.txt',codeFor(id));}
