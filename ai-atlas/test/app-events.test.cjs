@@ -246,6 +246,40 @@ test('Pan is active on load and dragging over a card moves the canvas',()=>{
  assert.deepEqual(readView(elements),{...before,x:before.x+70,y:before.y+50});
  assert.equal(fire('click',button).defaultPrevented,true);assert.equal(location.hash,'');
 });
+test('Pan clicks open cards and lessons without capturing the pointer or moving the canvas',()=>{
+ for(const point of [{clientX:100,clientY:100},{clientX:103,clientY:104}]){
+  const s=setup({spaces:true}),before=readView(s.elements);
+  const click=target=>{
+   const down=s.fire('pointerdown',target);
+   assert.notEqual(down.defaultPrevented,true);assert.equal(s.canvas.hasPointerCapture(1),false);
+   s.fire('pointermove',target,point);assert.equal(s.canvas.hasPointerCapture(1),false);
+   assert.equal(s.canvas.classes.has('dragging'),false);
+   s.fire('pointerup',target,point);assert.notEqual(s.fire('click',target).defaultPrevented,true);
+  };
+  click(s.term);assert.equal(s.location.hash,'#cnn','clicking a term in the title opens its card');
+  const article=s.make('article','BUTTON',s.canvas,{read:'article:cnn'}),spaceView=readView(s.elements);
+  click(article);assert.equal(s.elements.get('reader').open,true);
+  assert.deepEqual(readView(s.elements),spaceView);
+  s.elements.get('reader-close').onclick();s.elements.get('space-back').onclick();
+  assert.deepEqual(readView(s.elements),before,'a click with jitter does not move the map');
+  click(s.make('save','BUTTON',s.canvas,{save:'cnn'}));
+  assert.deepEqual(JSON.parse(s.storage.get('ai-atlas-route-v1')),['cnn']);
+ }
+});
+test('Pan drag suppresses opening, ignores capture transfer from a child, then allows the next click',()=>{
+ const s=setup({spaces:true});s.fire('click',s.button);
+ const article=s.make('article','BUTTON',s.canvas,{read:'article:cnn'}),before=readView(s.elements);
+ s.fire('pointerdown',article);s.fire('pointermove',article,{clientX:150,clientY:130});
+ assert.equal(s.canvas.hasPointerCapture(1),true);
+ s.fire('lostpointercapture',article);
+ s.fire('pointermove',s.canvas,{clientX:190,clientY:150});
+ assert.deepEqual(readView(s.elements),{...before,x:before.x+90,y:before.y+50});
+ s.fire('pointerup',s.canvas);assert.equal(s.fire('click',article).defaultPrevented,true);
+ assert.notEqual(s.elements.get('reader').open,true);
+ s.canvas.releasePointerCapture(1);s.fire('lostpointercapture',s.canvas);
+ s.fire('pointerdown',article);s.fire('pointerup',article);s.fire('click',article);
+ assert.equal(s.elements.get('reader').open,true);
+});
 test('trackpad pinch zooms around the pointer in Pan and Select, including topic spaces',()=>{
  for(const spaces of [false,true])for(const tool of ['pan','select']){
   const s=setup({spaces});if(spaces)s.fire('click',s.button);s.elements.get(tool+'-tool').onclick();

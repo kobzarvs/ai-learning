@@ -89,7 +89,7 @@ function deferHideTerm(){clearTimeout(termTimer);termTimer=setTimeout(hideTerm,1
 document.addEventListener('pointerover',e=>{const term=e.target.closest('.term');if(term&&term!==activeTerm)showTerm(term);else if(e.target.closest('#term-tooltip'))clearTimeout(termTimer);});
 document.addEventListener('pointerout',e=>{if(e.target.closest('.term,#term-tooltip')&&!e.relatedTarget?.closest('.term,#term-tooltip'))deferHideTerm();});
 document.addEventListener('focusin',e=>{if(e.target.matches('.term'))showTerm(e.target);else hideTerm();});
-document.addEventListener('click',e=>{const term=e.target.closest('.term');if(!term)return;if(e.target.closest('#canvas')&&pan.blocksClick(e.detail===0))return;e.preventDefault();e.stopImmediatePropagation();showTerm(term);},true);
+document.addEventListener('click',e=>{const term=e.target.closest('.term');if(!term)return;if(e.target.closest('#canvas')&&(term.closest('button')||pan.blocksClick(e.detail===0)))return;e.preventDefault();e.stopImmediatePropagation();showTerm(term);},true);
 document.addEventListener('keydown',e=>{if(e.target.matches('.term')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showTerm(e.target);}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.term,#term-tooltip'))hideTerm();},true);
 window.addEventListener('resize',hideTerm);$('inspector').addEventListener('scroll',hideTerm);
@@ -114,27 +114,31 @@ function setPan(value){pan.setTool(value?'pan':'select');syncPanCursor();}
 $('pan-tool').onclick=()=>setPan(true);$('select-tool').onclick=()=>setPan(false);
 const pointers=new Map();let gesture=null;
 function rebaseGesture(){const p=[...pointers.values()];if(p.length>1)gesture={view:{...view},x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};else if(p.length)gesture={view:{...view},x:p[0].x,y:p[0].y};else gesture=null;}
+function capturePan(){for(const id of pointers.keys())if(!$('canvas').hasPointerCapture(id))$('canvas').setPointerCapture(id);}
 // Capture before card buttons: a pan must never turn into their click action.
 document.addEventListener('pointerdown',()=>pan.freshPointer(),true);
 $('canvas').addEventListener('click',e=>{if(pan.blocksClick(e.detail===0)){e.preventDefault();e.stopImmediatePropagation();}},true);
 $('canvas').addEventListener('pointerdown',e=>{
   if(spaces?.pointerDown(e,pan.effective))return;
-  const accepted=pan.begin({id:e.pointerId,button:e.button,onControl:!!e.target.closest('button,a'),shiftKey:e.shiftKey});
+  const r=$('canvas').getBoundingClientRect(),point={x:e.clientX-r.left,y:e.clientY-r.top};
+  const accepted=pan.begin({id:e.pointerId,button:e.button,onControl:!!e.target.closest('button,a'),shiftKey:e.shiftKey,...point});
   syncPanCursor();if(!accepted)return;
-  hideTerm();e.preventDefault();e.stopPropagation();
-  const r=$('canvas').getBoundingClientRect();pointers.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});
-  $('canvas').setPointerCapture(e.pointerId);rebaseGesture();
+  pointers.set(e.pointerId,point);rebaseGesture();
+  // Leave a stationary press on its original button so the browser can click it.
+  if(pan.dragging){hideTerm();e.preventDefault();e.stopPropagation();capturePan();}
 },true);
 $('canvas').addEventListener('pointermove',e=>{
   if(spaces?.pointerMove(e))return;
   if(!pointers.has(e.pointerId)||!gesture)return;
   const r=$('canvas').getBoundingClientRect();pointers.set(e.pointerId,{x:e.clientX-r.left,y:e.clientY-r.top});const p=[...pointers.values()];
+  if(!pan.move(e.pointerId,e.clientX-r.left,e.clientY-r.top))return;
+  hideTerm();e.preventDefault();capturePan();syncPanCursor();
   if(p.length>1&&gesture.d){const x=(p[0].x+p[1].x)/2,y=(p[0].y+p[1].y)/2,d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);view=C.zoomAt(gesture.view,gesture.view.scale*d/Math.max(gesture.d,1),gesture.x,gesture.y);view.x+=x-gesture.x;view.y+=y-gesture.y;}
   else view={...gesture.view,x:gesture.view.x+p[0].x-gesture.x,y:gesture.view.y+p[0].y-gesture.y};updateView();
 });
-function endPointer(e){spaces?.pointerUp(e);pan.end(e.pointerId);if(pointers.delete(e.pointerId))rebaseGesture();syncPanCursor();}
+function endPointer(e){spaces?.pointerUp(e);pan.end(e.pointerId,{cancelled:e.type!=='pointerup'});if(pointers.delete(e.pointerId))rebaseGesture();syncPanCursor();}
 document.addEventListener('pointerup',endPointer,true);document.addEventListener('pointercancel',endPointer,true);
-$('canvas').addEventListener('lostpointercapture',endPointer);
+$('canvas').addEventListener('lostpointercapture',e=>{if(e.target===$('canvas'))endPointer(e);});
 $('canvas').addEventListener('wheel',e=>{
   e.preventDefault();hideTerm();
   const r=$('canvas').getBoundingClientRect();

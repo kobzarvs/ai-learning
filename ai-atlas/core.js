@@ -113,23 +113,25 @@ function routeConnection(cards,groups,source,target) {
 // The tool belongs to the user; modifiers are only overrides. A pointer gesture
 // owns its mode until all its pointers end, regardless of key-up ordering.
 function createPanController(){
-  let tool='pan',mode=null,blockClick=false;
-  const modifiers=new Set(),pointers=new Set();
+  let tool='pan',mode=null,blockClick=false,moved=false;
+  const modifiers=new Set(),pointers=new Map();
   const effective=()=>mode||(modifiers.size?'pan':tool);
   return {
     get tool(){return tool;},get effective(){return effective();},
-    get dragging(){return mode==='pan'&&pointers.size>0;},
+    get dragging(){return mode==='pan'&&moved&&pointers.size>0;},
     setTool(next){tool=next==='pan'?'pan':'select';},
     modifier(key,down){if(down)modifiers.add(key);else modifiers.delete(key);},
-    freshPointer(){blockClick=false;},
-    begin({id,button=0,onControl=false,shiftKey=false}){
+    freshPointer(){if(!pointers.size)blockClick=false;},
+    begin({id,button=0,onControl=false,shiftKey=false,x=0,y=0}){
       if(button!==0&&button!==1)return false;
-      if(!pointers.size)mode=button===1||shiftKey||effective()==='pan'||!onControl?'pan':'select';
-      pointers.add(id);return mode==='pan';
+      if(!pointers.size){mode=button===1||shiftKey||effective()==='pan'||!onControl?'pan':'select';moved=false;}
+      pointers.set(id,{x,y});if(mode==='pan'&&pointers.size>1)moved=true;
+      return mode==='pan';
     },
-    end(id){if(!pointers.delete(id))return;blockClick=mode==='pan';if(!pointers.size)mode=null;},
-    blocksClick(keyboard=false){return !keyboard&&(blockClick||mode==='pan');},
-    reset(){blockClick=mode==='pan';modifiers.clear();pointers.clear();mode=null;}
+    move(id,x,y){const start=pointers.get(id);if(mode!=='pan'||!start)return false;moved||=Math.hypot(x-start.x,y-start.y)>5;return moved;},
+    end(id,{cancelled=false}={}){if(!pointers.delete(id))return;blockClick||=mode==='pan'&&(moved||cancelled);if(!pointers.size){mode=null;moved=false;}},
+    blocksClick(keyboard=false){return !keyboard&&(blockClick||(mode==='pan'&&moved));},
+    reset(){blockClick||=mode==='pan';modifiers.clear();pointers.clear();mode=null;moved=false;}
   };
 }
 function createTermRenderer(glossary={}){

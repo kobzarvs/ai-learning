@@ -11,6 +11,7 @@ test('Shift release during a card drag keeps the gesture and blocks the resultin
  const pan=C.createPanController();pan.setTool('select');
  pan.modifier('ShiftLeft',true);assert.equal(pan.tool,'select');assert.equal(pan.effective,'pan');
  assert.equal(down(pan,{shiftKey:true}),true);
+ pan.move(1,20,0);
  pan.modifier('ShiftLeft',false);assert.equal(pan.effective,'pan');assert.equal(pan.dragging,true);
  pan.end(1);assert.equal(pan.effective,'select');assert.equal(pan.dragging,false);assert.equal(pan.blocksClick(),true);
  pan.end(1);assert.equal(pan.blocksClick(),true,'lostpointercapture must not clear click suppression');
@@ -19,7 +20,7 @@ test('Shift release during a card drag keeps the gesture and blocks the resultin
 test('mouse-up before Shift-up and repeated Shift cycles never change the selected tool',()=>{
  const pan=C.createPanController();pan.setTool('select');
  for(let i=0;i<4;i++){
-  pan.modifier('ShiftLeft',true);assert.equal(down(pan),true);pan.end(1);
+  pan.modifier('ShiftLeft',true);assert.equal(down(pan),true);pan.move(1,20,0);pan.end(1);
   assert.equal(pan.effective,'pan');assert.equal(pan.blocksClick(),true);
   pan.modifier('ShiftLeft',false);assert.equal(pan.tool,'select');assert.equal(pan.effective,'select');
  }
@@ -51,6 +52,15 @@ test('middle-button pan and modifier flags work even if the keydown was outside 
  const pan=C.createPanController();pan.setTool('select');assert.equal(down(pan,{button:1}),true);pan.end(1);
  assert.equal(down(pan,{shiftKey:true}),true);pan.end(1);assert.equal(pan.effective,'select');
  assert.equal(down(pan,{button:2}),false);assert.equal(pan.dragging,false);
+});
+test('Pan distinguishes a click with hand jitter from a drag, even after returning to the start',()=>{
+ const pan=C.createPanController();down(pan,{x:100,y:100});
+ assert.equal(pan.dragging,false);assert.equal(pan.move(1,103,104),false);
+ pan.end(1);assert.equal(pan.blocksClick(),false);
+ down(pan,{x:100,y:100});assert.equal(pan.move(1,106,100),true);
+ pan.move(1,100,100);pan.end(1);assert.equal(pan.blocksClick(),true);
+ down(pan);pan.end(1);assert.equal(pan.blocksClick(),false);
+ down(pan);pan.end(1,{cancelled:true});assert.equal(pan.blocksClick(),true);
 });
 test('term rendering uses whole terms, longest aliases, safe text, and optional keyboard focus',()=>{
  const render=C.createTermRenderer(data.glossary);
