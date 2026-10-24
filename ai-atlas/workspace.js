@@ -66,7 +66,7 @@ function create(o){
  const sectionKinds={
   'Задача':'target','Что будем делать руками':'target','Что покажет этот код':'target',
   'Порядок работы':'steps','Как это устроено':'mechanism','Где пригодится':'target',
-  'Представь такую задачу':'example','Что важно понимать':'info','На что смотреть в результате':'result',
+  'Представь такую задачу':'example','Пример применения':'example','Что важно понимать':'info','На что смотреть в результате':'result',
   'Измени одно условие':'experiment','Как оценить результат':'result','Границы этого опыта':'info',
   'Подготовка и запуск':'terminal','Разбор':'book','Ожидаемый результат':'result',
   'Попробуй изменить':'experiment','Что пример не доказывает':'info','Первоисточники':'sources','Темы внутри':'topics'
@@ -96,7 +96,9 @@ function create(o){
   let html='';
   if(mode==='note'){html=`<div class="personal-note">${esc(card.body||'Пока пусто. Добавь свои наблюдения.').replace(/\n/g,'<br>')}</div><button class="inline-primary" data-edit-note="${esc(card.id)}">Редактировать заметку</button>`;}
   else if(mode==='article'){
-   html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',n.tasks)}${textSection('Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
+   const normalize=text=>String(text||'').replace(/\s+/g,' ').trim();
+   const sharedExample=normalize(n.tasks)===normalize(n.example);
+   html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',sharedExample?'':n.tasks)}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
    if(l)html+=textSection('Что будем делать руками',l.goal)+textSection('На что смотреть в результате',l.expected)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
    if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
   }else if(l&&mode==='exercise'){

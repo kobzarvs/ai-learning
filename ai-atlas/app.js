@@ -140,11 +140,10 @@ $('canvas').addEventListener('wheel',e=>{
   const r=$('canvas').getBoundingClientRect();
   const unit=e.deltaMode===1?16:e.deltaMode===2?r.height:1;
   const dx=e.deltaX*unit,dy=e.deltaY*unit;
-  // Shift and the hand tool apply to scrolling as well as pointer dragging.
-  // Keep both axes: vertical scrolling must move vertically, never zoom in Pan.
-  if(e.shiftKey||pan.effective==='pan'||Math.abs(dx)>Math.abs(dy)){
-    view.x-=dx;view.y-=dy;updateView();
-  }else zoom(Math.exp(-dy*.0015),e.clientX-r.left,e.clientY-r.top);
+  // Trackpad pinch arrives as Ctrl + wheel, including while Pan is selected.
+  // Ordinary two-finger scrolling and mouse wheels always move the canvas.
+  if(e.ctrlKey)zoom(Math.exp(-dy*.01),e.clientX-r.left,e.clientY-r.top);
+  else{view.x-=dx;view.y-=dy;updateView();}
 },{passive:false});
 const isEditing=target=>target.closest('input,textarea,select,dialog,[contenteditable="true"]');
 document.addEventListener('keydown',e=>{
@@ -163,5 +162,5 @@ $('nodes').addEventListener('focusin',e=>{const b=e.target.closest('button'),id=
 window.addEventListener('hashchange',()=>{const id=readHash();if(id==='root')fitAll();else if(index.has(id))navigate(id,{details:true,hash:false});});
 new ResizeObserver(()=>{const w=$('canvas').clientWidth,h=$('canvas').clientHeight;if(w!==viewportWidth||h!==viewportHeight){view.x+=(w-viewportWidth)/2;view.y+=(h-viewportHeight)/2;updateView();}}).observe($('canvas'));
 spaces=window.AtlasSpaces?.create({index,rich,esc,toast,sources:data.sources,hideTerm,closeDetail,getView:()=>view,setView:v=>{view={...v};updateView();},returnToMap:v=>{if(v){view={...v};updateView();$('breadcrumb-current').textContent='Карта знаний';history.replaceState(null,'','#root');}else fitAll();},selectTool:()=>setPan(false),panBlocks:keyboard=>pan.blocksClick(keyboard)});
-renderBoard();setPan(false);const initial=readHash();requestAnimationFrame(()=>{if(initial==='root')fitAll();else navigate(index.has(initial)?initial:'neural',{details:!!initial&&index.has(initial),hash:false});});
+renderBoard();syncPanCursor();const initial=readHash();requestAnimationFrame(()=>{if(initial==='root')fitAll();else navigate(index.has(initial)?initial:'neural',{details:!!initial&&index.has(initial),hash:false});});
 })();

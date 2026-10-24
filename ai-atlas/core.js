@@ -113,7 +113,7 @@ function routeConnection(cards,groups,source,target) {
 // The tool belongs to the user; modifiers are only overrides. A pointer gesture
 // owns its mode until all its pointers end, regardless of key-up ordering.
 function createPanController(){
-  let tool='select',mode=null,blockClick=false;
+  let tool='pan',mode=null,blockClick=false;
   const modifiers=new Set(),pointers=new Set();
   const effective=()=>mode||(modifiers.size?'pan':tool);
   return {

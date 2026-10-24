@@ -3,8 +3,12 @@ const assert=require('node:assert/strict');
 const C=require('../core.js');
 const data=require('../../map-data.json');
 const down=(pan,options={})=>{pan.freshPointer();return pan.begin({id:1,onControl:true,...options});};
+test('Pan is the default tool and reset preserves it',()=>{
+ const pan=C.createPanController();assert.equal(pan.tool,'pan');assert.equal(pan.effective,'pan');
+ assert.equal(down(pan),true);pan.end(1);pan.reset();assert.equal(pan.effective,'pan');
+});
 test('Shift release during a card drag keeps the gesture and blocks the resulting click',()=>{
- const pan=C.createPanController();
+ const pan=C.createPanController();pan.setTool('select');
  pan.modifier('ShiftLeft',true);assert.equal(pan.tool,'select');assert.equal(pan.effective,'pan');
  assert.equal(down(pan,{shiftKey:true}),true);
  pan.modifier('ShiftLeft',false);assert.equal(pan.effective,'pan');assert.equal(pan.dragging,true);
@@ -13,7 +17,7 @@ test('Shift release during a card drag keeps the gesture and blocks the resultin
  assert.equal(down(pan),false);pan.end(1);assert.equal(pan.blocksClick(),false,'next ordinary click opens its card');
 });
 test('mouse-up before Shift-up and repeated Shift cycles never change the selected tool',()=>{
- const pan=C.createPanController();
+ const pan=C.createPanController();pan.setTool('select');
  for(let i=0;i<4;i++){
   pan.modifier('ShiftLeft',true);assert.equal(down(pan),true);pan.end(1);
   assert.equal(pan.effective,'pan');assert.equal(pan.blocksClick(),true);
@@ -23,20 +27,20 @@ test('mouse-up before Shift-up and repeated Shift cycles never change the select
  assert.equal(pan.effective,'pan');assert.equal(pan.tool,'pan');
 });
 test('two Shift keys, keyboard repeat and Space are independent overrides',()=>{
- const pan=C.createPanController();
+ const pan=C.createPanController();pan.setTool('select');
  pan.modifier('ShiftLeft',true);pan.modifier('ShiftLeft',true);pan.modifier('ShiftRight',true);
  pan.modifier('ShiftLeft',false);assert.equal(pan.effective,'pan');
  pan.modifier('Space',true);pan.modifier('ShiftRight',false);assert.equal(pan.effective,'pan');
  pan.modifier('Space',false);assert.equal(pan.effective,'select');
 });
 test('a selection gesture cannot change into pan when Shift is pressed halfway through',()=>{
- const pan=C.createPanController();assert.equal(down(pan),false);
+ const pan=C.createPanController();pan.setTool('select');assert.equal(down(pan),false);
  pan.modifier('ShiftLeft',true);assert.equal(pan.effective,'select');
  pan.end(1);assert.equal(pan.blocksClick(),false);assert.equal(pan.effective,'pan');
  pan.modifier('ShiftLeft',false);assert.equal(pan.effective,'select');
 });
 test('multi-pointer gestures, cancellation and loss of focus leave no stuck override',()=>{
- const pan=C.createPanController();down(pan,{onControl:false});
+ const pan=C.createPanController();pan.setTool('select');down(pan,{onControl:false});
  pan.begin({id:2,onControl:false});pan.end(1);assert.equal(pan.dragging,true);
  pan.modifier('ShiftLeft',true);pan.end(2);assert.equal(pan.dragging,false);
  pan.reset();assert.equal(pan.effective,'select');assert.equal(pan.dragging,false);
@@ -44,7 +48,7 @@ test('multi-pointer gestures, cancellation and loss of focus leave no stuck over
  assert.equal(pan.blocksClick(true),false,'keyboard activation is not a synthetic mouse click');
 });
 test('middle-button pan and modifier flags work even if the keydown was outside the page',()=>{
- const pan=C.createPanController();assert.equal(down(pan,{button:1}),true);pan.end(1);
+ const pan=C.createPanController();pan.setTool('select');assert.equal(down(pan,{button:1}),true);pan.end(1);
  assert.equal(down(pan,{shiftKey:true}),true);pan.end(1);assert.equal(pan.effective,'select');
  assert.equal(down(pan,{button:2}),false);assert.equal(pan.dragging,false);
 });
