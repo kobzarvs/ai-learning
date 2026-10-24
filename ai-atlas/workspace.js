@@ -5,6 +5,7 @@ function create(o){
  const $=id=>document.getElementById(id),canvas=$('canvas'),world=$('workspace-world');
  const art=(id,options)=>scope.AtlasArt?.render(id,options)||'';
  const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
+ const contentBlocks=new Map();
  let launchMode='local',currentLaunch=null,exerciseLanguage='python';
  const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
  const causalExperiment={minutesSaved:4,assignment:'biased'};
@@ -95,6 +96,7 @@ function create(o){
   if(card.type==='topic'){enter(card.ref);return;}
   if(readerCard?.ref!==card.ref)exerciseLanguage='python';
   readerCard=card;const n=index.get(card.ref)||index.get(active),l=lessons[n.id],mode=tab||({example:'python',rust:'rust',exercise:'exercise',note:'note'}[card.type]||'article');
+  contentBlocks.clear();
   if(['python','rust','mlx'].includes(mode))exerciseLanguage=mode;
   $('reader-title').innerHTML=art(card.type==='note'?'projects':n.id,{decorative:true})+'<span>'+esc(card.type==='note'?card.title:n.name)+'</span>';
   $('reader-tabs').innerHTML=card.type==='note'?'':[['article','Разобраться'],...(l?.guide?[['methods','Методы и случаи']]:[]),...(l?[['python','Python'],...(l.rust?[['rust','Rust + Burn']]:[]),...(l.mlx?[['mlx','Python + MLX']]:[]),['exercise',n.id==='causal'?'Эксперимент':'Задание']]:[])].map(([key,label])=>`<button data-reader-tab="${key}" aria-pressed="${key===mode}">${label}</button>`).join('');
@@ -122,22 +124,39 @@ function create(o){
    if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
    html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
   }
+  const presentation=scope.ATLAS_PRESENTATION?.[n.id]||{};
+  if(card.type!=='note'&&Array.isArray(presentation.sections?.[mode])){
+   html=scope.AtlasContent.renderSections(presentation.sections[mode],{rich,
+    code:block=>{const id='content-'+contentBlocks.size;contentBlocks.set(id,block.code||'');return codeBlock(block.code||'',id,block.filename||block.language||'Код',block.language||'python');},
+    experiment:id=>id==='causal'?lessonVisual('causal'):''});
+  }
+  const layout=scope.AtlasContent?.layoutValues(presentation.layout?.[mode]||{})||{};
+  for(const [key,property] of [['readerWidth','--content-reader-width'],['textWidth','--content-text-width'],['chartsColumns','--content-charts-columns']]){
+   $('reader').style.setProperty(property,layout[key]?String(layout[key])+(key==='chartsColumns'?'':'px'):'');
+  }
   if(card.type!=='note'){
    const sources=[...(n.sources||[]).map(k=>o.sources[k]).filter(Boolean),...(l?.sources||[])];
    html+=`<section class="reading-section reading-sources">${sectionHeading('Первоисточники')}${sources.map(([name,url])=>/^https?:\/\//.test(url)?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} ↗</a>`:'').join('')}</section>`;
   }
-  $('reader').classList.toggle('reader-wide',n.id==='causal'&&mode!=='note');
+  const codeMode=['python','rust','mlx'].includes(mode);
+  $('reader').classList.toggle('reader-code',codeMode);
+  $('reader').classList.toggle('reader-wide',codeMode||(n.id==='causal'&&['exercise','methods'].includes(mode)));
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
+  scope.ATLAS_CONTENT_CLIENT?.refresh();
  }
  function refreshLaunch(){
   const content=$('reader-content'),scroll=content.scrollTop,charts=content.querySelector('.lesson-charts'),horizontal=charts?.scrollLeft||0;
+  const codeScroll=[...content.querySelectorAll('pre')].map(el=>({left:el.scrollLeft,top:el.scrollTop}));
+  const openDetails=[...content.querySelectorAll('details')].map(el=>el.open);
   const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
   read(readerCard,$('reader').dataset.tab);content.scrollTop=scroll;
   const updated=content.querySelector('.lesson-charts');if(updated)updated.scrollLeft=horizontal;
+  [...content.querySelectorAll('pre')].forEach((el,i)=>{if(codeScroll[i]){el.scrollLeft=codeScroll[i].left;el.scrollTop=codeScroll[i].top;}});
+  [...content.querySelectorAll('details')].forEach((el,i)=>{if(openDetails[i])el.open=true;});
   if(focusKey)[...content.querySelectorAll('button')].find(button=>button.dataset[focusKey]===focusValue)?.focus({preventScroll:true});
  }
  function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
- function codeFor(id){return currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
+ function codeFor(id){return contentBlocks.has(id)?contentBlocks.get(id):currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
 
  function editor(mode,id){
   if(!active)return;edit={mode,id};const item=mode==='group'?board().groups.find(g=>g.id===id):board().cards.find(c=>c.id===id);
@@ -194,7 +213,7 @@ function create(o){
  });
  canvas.addEventListener('click',e=>{if(active&&suppressClick&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();}},true);
  document.addEventListener('keydown',e=>{if(!active||e.target.closest('input,textarea,select,dialog')||e.shiftKey)return;const moves={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]},handle=e.target.closest('[data-drag-card],[data-drag-group]');if(handle&&moves[e.key]){e.preventDefault();checkpoint();const [dx,dy]=moves[e.key].map(v=>v*(e.altKey?5:1));if(handle.dataset.dragGroup)C.moveGroup(board(),handle.dataset.dragGroup,dx,dy);else{const c=board().cards.find(c=>c.id===handle.dataset.dragCard);c.x+=dx;c.y+=dy;if(c.groupId)C.fitGroup(board(),c.groupId);}const cardId=handle.dataset.dragCard,groupId=handle.dataset.dragGroup;save();render();[...world.querySelectorAll('[data-drag-card],[data-drag-group]')].find(x=>cardId?x.dataset.dragCard===cardId:x.dataset.dragGroup===groupId)?.focus();}});
- return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
+ return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},refreshContent(){render();if(active)$('space-title').textContent=index.get(active)?.name||'';if(readerCard&&readerCard.type!=='note')refreshLaunch();},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
 }
 scope.AtlasSpaces={create};
 })(window);

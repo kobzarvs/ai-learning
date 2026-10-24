@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { contentResponse } from './content-db.mjs';
 const allowed = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
@@ -7,12 +8,16 @@ const allowed = new Map([
   ['/core.js', ['core.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/map-data.js', ['map-data.js', 'text/javascript; charset=utf-8']],
-  ...['lesson-data.js','workspace-core.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'].map(name=>['/'+name,[name,'text/javascript; charset=utf-8']]),
+  ...['lesson-data.js','content.js','workspace-core.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'].map(name=>['/'+name,[name,'text/javascript; charset=utf-8']]),
   ['/art/topic-icons.png', ['art/topic-icons.png', 'image/png']],
   ['/vendor/PRISM-LICENSE.txt', ['vendor/PRISM-LICENSE.txt', 'text/plain; charset=utf-8']]
 ]);
 const port = Number(process.env.PORT || 4173);
 createServer(async (req, res) => {
+  if(new URL(req.url,'http://localhost').pathname==='/api/content'){
+    const result=await contentResponse(new Request('http://localhost'+req.url,{method:req.method}));
+    res.writeHead(result.status,Object.fromEntries(result.headers));res.end(await result.text());return;
+  }
   const match = allowed.get(new URL(req.url, 'http://localhost').pathname);
   if (!match) { res.writeHead(404); res.end('Not found'); return; }
   try {

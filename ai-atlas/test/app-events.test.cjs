@@ -28,8 +28,8 @@ function setup({spaces=false}={}){
  const objectURLs={createObjectURL(blob){const id='blob:'+blobs.size;blobs.set(id,blob);return id;},revokeObjectURL(id){blobs.delete(id);}};
  doc.createElement=tag=>{const el=new Element('',tag.toUpperCase());el.click=()=>downloads.push({name:el.download,blob:blobs.get(el.href)});return el;};
  const context={structuredClone,Blob,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
- win.AtlasCore=C;win.ATLAS_DATA=data;win.innerWidth=1440;win.innerHeight=900;
- if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
+ win.AtlasCore=C;win.ATLAS_DATA=structuredClone(data);win.innerWidth=1440;win.innerHeight=900;
+ if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','content.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);win.AtlasContent.start=options=>{win.contentHooks=options;return{refresh(){}};};}
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
  function fire(type,target,props={}){
   const e={type,target,button:0,pointerId:1,clientX:100,clientY:100,detail:1,key:'',code:'',shiftKey:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;},stopImmediatePropagation(){this.stopped=true;this.immediate=true;},...props};
@@ -225,7 +225,7 @@ test('causal tabs separate concepts, methods, Python code and interactive charts
  s.fire('click',s.make('causal-topic','BUTTON',s.canvas,{open:'causal'}));
  s.fire('click',s.make('causal-article','BUTTON',s.canvas,{read:'article:causal'}));
  const content=s.elements.get('reader-content'),reader=s.elements.get('reader');
- assert.equal(reader.classes.has('reader-wide'),true);
+ assert.equal(reader.classes.has('reader-wide'),false);
  assert.match(content.innerHTML,/Сотрудникам дают новую инструкцию/);
  assert.doesNotMatch(content.innerHTML,/lesson-visual|causal-scatter-title/);
  s.fire('click',s.make('experiment','BUTTON',null,{readerTab:'exercise'}));
@@ -368,4 +368,21 @@ test('two touch pointers pinch and pan together, then one finger continues witho
  fire('pointermove',canvas,{pointerId:1,clientX:120,clientY:130,pointerType:'touch'});
  assert.deepEqual(readView(elements),{...pinched,x:pinched.x+20,y:pinched.y+30});
  fire('pointerup',canvas,{pointerId:1});assert.equal(canvas.classes.has('dragging'),false);
+});
+
+test('published content refresh preserves open tab, scroll, device, camera and personal notes',()=>{
+ const s=setup({spaces:true});
+ s.fire('click',s.make('causal','BUTTON',s.canvas,{open:'causal'}));
+ s.elements.get('space-note').onclick();s.elements.get('editor-title').value='Моя гипотеза';s.elements.get('editor-body').value='Сохранить заметку';s.fire('submit',s.elements.get('editor-form'));
+ s.fire('click',s.make('article','BUTTON',s.canvas,{read:'article:causal'}));
+ s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
+ s.fire('click',s.make('mps','BUTTON',null,{launchDevice:'mps'}));
+ const reader=s.elements.get('reader'),content=s.elements.get('reader-content'),camera=readView(s.elements),saved=s.storage.get('ai-atlas-workspaces-v1');
+ content.scrollTop=740;
+ const lesson=structuredClone(s.win.ATLAS_LESSONS.topics.causal);lesson.explanation='Проверенное новое объяснение из базы';
+ s.win.contentHooks.onChange([{id:'causal',payload:{node:{name:'Причинные модели'},lesson,layout:{python:{readerWidth:1420}},sections:{}}}],true);
+ assert.equal(reader.open,true);assert.equal(reader.dataset.tab,'python');assert.equal(content.scrollTop,740);
+ assert.match(content.innerHTML,/Проверенное новое объяснение из базы/);
+ assert.match(content.innerHTML,/data-launch-device="mps" aria-pressed="true"/);
+ assert.deepEqual(readView(s.elements),camera);assert.equal(s.storage.get('ai-atlas-workspaces-v1'),saved);
 });

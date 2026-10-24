@@ -11,7 +11,10 @@ let route;try{route=C.restoreRoute(localStorage.getItem('ai-atlas-route-v1'),ind
 let spaces=null;
 let view={scale:.85,x:0,y:0},current='neural',selected=null,toastTimer,lastDetailTrigger=null;
 let viewportWidth=$('canvas').clientWidth,viewportHeight=$('canvas').clientHeight;
-const pan=C.createPanController(),rich=C.createTermRenderer(data.glossary);
+const pan=C.createPanController();
+let termRenderer=C.createTermRenderer(data.glossary);
+const rich=(...args)=>termRenderer(...args);
+const presentation=window.ATLAS_PRESENTATION={};
 const cardById=new Map(map.cards.map(c=>[c.id,c]));const groupById=new Map(map.groups.map(g=>[g.id,g]));
 function updateView(){ spaces?.updateView(view); viewportWidth=$('canvas').clientWidth;viewportHeight=$('canvas').clientHeight; $('world').style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$('zoom-value').textContent=Math.round(view.scale*100)+'%';$('canvas').classList.toggle('overview-mode',view.scale<.25);$('world').style.setProperty('--root-label-scale',Math.min(4,Math.max(1,.43/view.scale)));  }
 function boxFor(id){return cardById.get(id)||groupById.get(id);}
@@ -167,4 +170,16 @@ window.addEventListener('hashchange',()=>{const id=readHash();if(id==='root')fit
 new ResizeObserver(()=>{const w=$('canvas').clientWidth,h=$('canvas').clientHeight;if(w!==viewportWidth||h!==viewportHeight){view.x+=(w-viewportWidth)/2;view.y+=(h-viewportHeight)/2;updateView();}}).observe($('canvas'));
 spaces=window.AtlasSpaces?.create({index,rich,esc,toast,sources:data.sources,hideTerm,closeDetail,getView:()=>view,setView:v=>{view={...v};updateView();},returnToMap:v=>{if(v){view={...v};updateView();$('breadcrumb-current').textContent='Карта знаний';history.replaceState(null,'','#root');}else fitAll();},selectTool:()=>setPan(false),panBlocks:keyboard=>pan.blocksClick(keyboard)});
 renderBoard();syncPanCursor();const initial=readHash();requestAnimationFrame(()=>{if(initial==='root')fitAll();else navigate(index.has(initial)?initial:'neural',{details:!!initial&&index.has(initial),hash:false});});
+let contentFailureShown=false;
+window.ATLAS_CONTENT_CLIENT=window.AtlasContent?.start({
+  onChange(records,updated){
+    window.AtlasContent.apply(records,{data,index,lessons:window.ATLAS_LESSONS,presentation});
+    termRenderer=C.createTermRenderer(data.glossary);
+    renderBoard();spaces?.refreshContent();
+    if(selected&&!$('inspector').hidden)showDetail(selected);
+    $('breadcrumb-current').innerHTML=rich(index.get(spaces?.active||current)?.name||'Карта знаний');
+    if(updated)toast('Материалы обновлены');
+  },
+  onError(){if(!contentFailureShown){contentFailureShown=true;toast('Нет связи с базой. Показана последняя загруженная версия.');}}
+});
 })();
