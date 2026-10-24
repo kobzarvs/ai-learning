@@ -27,3 +27,11 @@ jobs:
           path: |
             uv.lock
             examples/rust-burn/Cargo.lock
+      - name: Export the resolved text lock for the workspace
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          print("ATLAS_UV_LOCK_BEGIN")
+          print(Path("uv.lock").read_text())
+          print("ATLAS_UV_LOCK_END")
+          PY
