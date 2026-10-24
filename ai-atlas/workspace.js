@@ -19,8 +19,9 @@ function create(o){
  function render(){
   if(!active)return;
   const b=board();world.innerHTML=b.groups.map(g=>`<section class="space-group" data-group="${esc(g.id)}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px"><header><button class="group-handle" data-drag-group="${esc(g.id)}" title="Переместить группу">⠿</button><button class="group-name" data-select-group="${esc(g.id)}">${esc(g.title)}</button><button data-group-menu="${esc(g.id)}" title="Изменить группу" aria-label="Изменить группу ${esc(g.title)}">•••</button></header></section>`).join('')+b.cards.map(c=>{
-   const topic=c.type==='topic'?index.get(c.ref):null;
-   const title=topic?.name||c.title,body=topic?.what||c.body;
+   const topic=index.get(c.ref),lesson=lessons[c.ref];
+   const title=c.type==='topic'?(topic?.name||c.title):c.title;
+   const body=({topic:topic?.what,article:topic?.what,exercise:lesson?.exercise,example:lesson?.goal,rust:lesson?.rust?.goal})[c.type]??c.body;
    const type={article:'Статья',topic:'Подпространство',example:'Python + PyTorch',rust:'Rust + Burn',exercise:'Практика',note:'Моя заметка'}[c.type];
    return `<article class="space-card type-${c.type}" data-card="${esc(c.id)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"><header><span>${type}</span><button data-drag-card="${esc(c.id)}" aria-label="Переместить ${esc(title)}" title="Перетащи карточку. Стрелки — сдвиг на 20, Alt + стрелки — на 100">⠿</button></header><button class="space-card-body" data-read="${esc(c.id)}"><div class="space-card-heading">${art(c.type==='note'?'projects':c.ref,{decorative:true})}<h2>${c.type==='note'?esc(c.title):rich(title)}</h2></div><p>${c.type==='note'?esc(c.body):rich(body)}</p><span>${c.type==='topic'?'Войти в пространство':'Открыть'} <b>↗</b></span></button></article>`;
   }).join('')+'<div id="selection-rect" class="selection-rect" hidden></div>';

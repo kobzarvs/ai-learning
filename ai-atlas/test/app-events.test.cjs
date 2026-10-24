@@ -379,10 +379,12 @@ test('published content refresh preserves open tab, scroll, device, camera and p
  s.fire('click',s.make('mps','BUTTON',null,{launchDevice:'mps'}));
  const reader=s.elements.get('reader'),content=s.elements.get('reader-content'),camera=readView(s.elements),saved=s.storage.get('ai-atlas-workspaces-v1');
  content.scrollTop=740;
- const lesson=structuredClone(s.win.ATLAS_LESSONS.topics.causal);lesson.explanation='Проверенное новое объяснение из базы';
- s.win.contentHooks.onChange([{id:'causal',payload:{node:{name:'Причинные модели'},lesson,layout:{python:{readerWidth:1420}},sections:{}}}],true);
+ const lesson=structuredClone(s.win.ATLAS_LESSONS.topics.causal);lesson.explanation='Проверенное новое объяснение из базы';lesson.exercise='Новое задание из базы';
+ s.win.contentHooks.onChange([{id:'causal',payload:{node:{name:'Причинные модели',what:'Актуальное описание из базы'},lesson,layout:{python:{readerWidth:1420}},sections:{}}}],true);
  assert.equal(reader.open,true);assert.equal(reader.dataset.tab,'python');assert.equal(content.scrollTop,740);
  assert.match(content.innerHTML,/Проверенное новое объяснение из базы/);
+ assert.match(s.elements.get('workspace-world').innerHTML,/Актуальное описание из базы/);
+ assert.match(s.elements.get('workspace-world').innerHTML,/Новое задание из базы/);
  assert.match(content.innerHTML,/data-launch-device="mps" aria-pressed="true"/);
  assert.deepEqual(readView(s.elements),camera);assert.equal(s.storage.get('ai-atlas-workspaces-v1'),saved);
 });
