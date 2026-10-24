@@ -1,0 +1,10 @@
+[package]
+name = "atlas-burn-examples"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+default-run = "linear"
+
+[dependencies]
+burn = { version = "=0.22.1", default-features = false, features = ["std", "flex", "optim"] }
