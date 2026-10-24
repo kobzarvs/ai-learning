@@ -71,3 +71,32 @@ test('rendered cards keep plain attribute labels and accessible tooltip handlers
  assert.equal(term.attrs['aria-describedby'],'term-tooltip');
  fire('keydown',canvas,{key:'Escape'});assert.equal(elements.get('term-tooltip').hidden,true);
 });
+function readView(elements){
+ const m=elements.get('world').style.transform.match(/translate\(([-\d.e]+)px,\s*([-\d.e]+)px\) scale\(([-\d.e]+)\)/);
+ assert.ok(m,'canvas transform is valid');return{x:Number(m[1]),y:Number(m[2]),scale:Number(m[3])};
+}
+test('Shift + wheel up and down pans vertically without zoom; releasing Shift restores zoom',()=>{
+ const {elements,canvas,fire}=setup();
+ fire('keydown',canvas,{key:'Shift',code:'ShiftLeft'});
+ for(const deltaY of [-120,120]){
+  const before=readView(elements);
+  const event=fire('wheel',canvas,{deltaX:0,deltaY,deltaMode:0,shiftKey:true});
+  const after=readView(elements);
+  assert.equal(after.scale,before.scale,'Shift scrolling must never zoom');
+  assert.equal(after.x,before.x);assert.equal(after.y,before.y-deltaY);
+  assert.equal(event.defaultPrevented,true);
+ }
+ fire('keyup',canvas,{key:'Shift',code:'ShiftLeft'});
+ const before=readView(elements);fire('wheel',canvas,{deltaX:0,deltaY:120,deltaMode:0});
+ assert.notEqual(readView(elements).scale,before.scale,'ordinary wheel zoom returns after Shift-up');
+});
+test('wheel pans in the selected Pan tool and respects horizontal and vertical deltas',()=>{
+ const {elements,canvas,fire}=setup();elements.get('pan-tool').onclick();
+ const before=readView(elements);fire('wheel',canvas,{deltaX:15,deltaY:80,deltaMode:0});
+ const after=readView(elements);assert.equal(after.scale,before.scale);assert.equal(after.x,before.x-15);assert.equal(after.y,before.y-80);
+});
+test('Shift wheel flags work without keydown and line-based wheels preserve scale',()=>{
+ const {elements,canvas,fire}=setup();const before=readView(elements);
+ fire('wheel',canvas,{deltaX:0,deltaY:3,deltaMode:1,shiftKey:true});
+ const after=readView(elements);assert.equal(after.scale,before.scale);assert.equal(after.y,before.y-48);
+});

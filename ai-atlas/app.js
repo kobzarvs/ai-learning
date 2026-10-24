@@ -129,7 +129,17 @@ $('canvas').addEventListener('pointermove',e=>{
 function endPointer(e){pan.end(e.pointerId);if(pointers.delete(e.pointerId))rebaseGesture();syncPanCursor();}
 document.addEventListener('pointerup',endPointer,true);document.addEventListener('pointercancel',endPointer,true);
 $('canvas').addEventListener('lostpointercapture',endPointer);
-$('canvas').addEventListener('wheel',e=>{e.preventDefault();hideTerm();const r=$('canvas').getBoundingClientRect();if(Math.abs(e.deltaX)>Math.abs(e.deltaY)){view.x-=e.deltaX;view.y-=e.deltaY;updateView();}else zoom(Math.exp(-e.deltaY*.0015*(e.deltaMode===1?16:1)),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+$('canvas').addEventListener('wheel',e=>{
+  e.preventDefault();hideTerm();
+  const r=$('canvas').getBoundingClientRect();
+  const unit=e.deltaMode===1?16:e.deltaMode===2?r.height:1;
+  const dx=e.deltaX*unit,dy=e.deltaY*unit;
+  // Shift and the hand tool apply to scrolling as well as pointer dragging.
+  // Keep both axes: vertical scrolling must move vertically, never zoom in Pan.
+  if(e.shiftKey||pan.effective==='pan'||Math.abs(dx)>Math.abs(dy)){
+    view.x-=dx;view.y-=dy;updateView();
+  }else zoom(Math.exp(-dy*.0015),e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
 const isEditing=target=>target.closest('input,textarea,select,dialog,[contenteditable="true"]');
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){if(activeTerm){hideTerm();return;}hideSearch();closeNav();if(!$('route-dialog').open)closeDetail();return;}
