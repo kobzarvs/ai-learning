@@ -11,10 +11,13 @@ fn main() {
     let adjacency=Tensor::<2>::from_data([[1.0_f32,1.,0.,0.],[1.,1.,1.,0.],[0.,1.,1.,0.],[0.,0.,0.,1.]],&device);
     let features=Tensor::<2>::from_data([[1.0_f32,0.],[0.,1.],[1.,1.],[8.,8.]],&device);
     let weights=adjacency.clone()/adjacency.sum_dim(1);
+    // Матрично умножаем тензоры: внутренние размеры должны совпадать.
     let messages=weights.matmul(features.clone());
+    // Задаём размеры линейного слоя; init создаёт его обучаемые веса.
     let answer=LinearConfig::new(2,3).with_bias(false).init(&device).forward(messages.clone());
     println!("Сведения после обмена: {:?}", messages.clone().into_data());
     println!("Размер после слоя: {:?}",answer.dims());
+    // Берём часть тензора по указанным диапазонам индексов.
     let error=(messages.slice([3..4])-features.slice([3..4])).abs().max().into_scalar::<f32>();
     assert_eq!(answer.dims(),[4,3]); assert_eq!(error,0.0);
 }

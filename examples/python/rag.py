@@ -1,11 +1,7 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,17 +33,18 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Создадим маленькую базу текстов, где записан лимит размера файла. По вопросу найдём подходящий фрагмент и вернём его вместе с указанием источника. Если нужных сведений нет, программа должна сообщить об этом. Это поисковая часть RAG (ответов с опорой на найденные документы); языковую модель, которая сочиняет ответ, здесь не подключаем.
 documents = ['лимит загрузки файла 20 мегабайт', 'пароль можно изменить в настройках',
              'экспорт заметок доступен в меню холста']
 vocab = {w:i for i,w in enumerate(sorted(set(' '.join(documents).split())))}
 def vector(text):
+    # Создаём тензор заданной формы и заполняем его нулями.
     result = torch.zeros(len(vocab))
     for word in text.split():
         if word in vocab: result[vocab[word]] += 1
+    # Нормируем векторы; по умолчанию их евклидова длина становится равной 1.
     return F.normalize(result, dim=0)
 query = 'какой лимит загрузки файла'
+# Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 scores = torch.stack([vector(d) for d in documents])@vector(query)
 best = int(scores.argmax())
 if scores[best] < 0.2:

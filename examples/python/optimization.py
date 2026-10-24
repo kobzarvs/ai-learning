@@ -1,11 +1,7 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,14 +33,21 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Будем подбирать одно число так, чтобы оно стало близко к 2. Ошибка — квадрат расстояния до цели, а каждый шаг меняет число в сторону уменьшения ошибки. Сравним маленький, умеренный и слишком большой шаг. Посмотрим, почему большой шаг способен не ускорить обучение, а увести от ответа.
 for learning_rate in [0.05, 0.4, 1.1]:
+    # Объявляем обучаемый параметр: оптимизатор сможет изменять его значение.
+    # Создаём тензор — числовой массив — из указанных значений.
     parameter = nn.Parameter(torch.tensor(5.))
+    # SGD — градиентный спуск; параметр lr задаёт размер шага уменьшения ошибки.
     optimizer = torch.optim.SGD([parameter], lr=learning_rate)
     losses = []
     for _ in range(20):
         loss = (parameter-2).square()
-        optimizer.zero_grad(set_to_none=True); loss.backward(); optimizer.step()
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
+        optimizer.zero_grad(set_to_none=True)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
+        loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
+        optimizer.step()
+        # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
         losses.append(float(loss.detach()))
     print('Шаг:', learning_rate, 'первые ошибки:', losses[:3], 'последняя:', losses[-1])

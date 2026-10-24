@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,42 +34,55 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_classifier(model, x, y, steps=160):
     # Обучаем только на переданной учебной части данных.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.001)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # Сравниваем оценки классов с правильными метками; меньше — лучше.
         loss = F.cross_entropy(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
     # argmax выбирает номер категории с наибольшей оценкой.
     return float((model(x).argmax(dim=-1) == y).float().mean())
 
 def points(count=320):
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 2)
     y = (x[:, 0] + 0.5 * x[:, 1] > 0).long()
     return x, y
 
-# Сначала обучим более широкую сеть-учителя различать категории точек. Затем маленькая сеть-ученик будет учиться по её оценкам вероятности каждой категории, а не только по одному готовому ответу. Такой перенос поведения называют дистилляцией. Сравним размер моделей и точность ученика на новых точках.
 x, y = points(400)
+# Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
+# Линейный слой учится преобразованию y = x @ W.T + b.
 teacher = nn.Sequential(nn.Linear(2, 32), nn.SiLU(), nn.Linear(32, 2))
 fit_classifier(teacher, x[:300], y[:300])
+# Явно включаем или отключаем вычисление градиентов для этих параметров.
 teacher.eval().requires_grad_(False)
 student = nn.Linear(2, 2)
 optimizer = torch.optim.AdamW(student.parameters(), lr=0.03)
 temperature = 2.
 for _ in range(180):
     with torch.no_grad():
+        # Преобразуем оценки в веса с суммой 1 вдоль выбранного измерения.
         soft_target = (teacher(x[:300])/temperature).softmax(1)
+    # KL-дивергенция измеряет расхождение распределений ученика и учителя.
+    # Устойчиво вычисляем логарифмы вероятностей классов из исходных оценок.
     soft_loss = F.kl_div((student(x[:300])/temperature).log_softmax(1), soft_target, reduction='batchmean')*temperature**2
     loss = 0.7*soft_loss+0.3*F.cross_entropy(student(x[:300]), y[:300])
-    optimizer.zero_grad(set_to_none=True); loss.backward(); optimizer.step()
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
 print('Учитель:', accuracy(teacher, x[300:], y[300:]))
 print('Ученик:', accuracy(student, x[300:], y[300:]))

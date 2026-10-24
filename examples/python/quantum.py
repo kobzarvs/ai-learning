@@ -1,11 +1,7 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,14 +33,20 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# На обычном компьютере рассчитаем поведение одного кубита (квантового элемента, измерение которого даёт 0 или 1 с определёнными вероятностями). Будем менять один угол в формуле, пока вероятность получить 1 не станет близкой к 80%. Это обучение одного числового параметра в симуляции. Настоящего квантового устройства и доказательства его преимуществ в этом опыте нет.
+# Объявляем обучаемый параметр: оптимизатор сможет изменять его значение.
+# Создаём тензор — числовой массив — из указанных значений.
 angle = nn.Parameter(torch.tensor(0.2))
+# Adam подбирает величину шага для каждого параметра по истории градиентов.
 optimizer = torch.optim.Adam([angle], lr=0.05)
 # После RY(theta) вероятности двух исходов: cos²(theta/2), sin²(theta/2).
 for _ in range(150):
     probability_one = torch.sin(angle/2).square()
     loss = (probability_one-0.8).square()
-    optimizer.zero_grad(set_to_none=True); loss.backward(); optimizer.step()
+    # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
+    optimizer.zero_grad(set_to_none=True)
+    # Вычисляем градиенты ошибки по обучаемым параметрам.
+    loss.backward()
+    # Обновляем обучаемые параметры по рассчитанным градиентам.
+    optimizer.step()
 print('Угол:', angle.item())
 print('Вероятность исхода 1:', torch.sin(angle/2).square().item())

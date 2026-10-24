@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,30 +34,38 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_classifier(model, x, y, steps=160):
     # Обучаем только на переданной учебной части данных.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.001)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # Сравниваем оценки классов с правильными метками; меньше — лучше.
         loss = F.cross_entropy(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
     # argmax выбирает номер категории с наибольшей оценкой.
     return float((model(x).argmax(dim=-1) == y).float().mean())
 
-# Обучим модель на объектах, описанных несколькими числами — признаками. Затем перемешаем значения одного признака между объектами, сохранив остальные данные, и снова проверим качество. Если оно сильно упадёт, значит модель заметно опиралась на этот признак. Повторим проверку для каждого столбца; это оценка зависимости модели, а не доказательство причины в реальном мире.
-x = torch.randn(400, 3); y = (2*x[:,0]+x[:,1]>0).long()
+# Создаём искусственные данные из нормального распределения со средним 0.
+x = torch.randn(400, 3)
+y = (2*x[:,0]+x[:,1]>0).long()
+# Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(3, 2)
 fit_classifier(model, x[:300], y[:300])
 baseline = accuracy(model, x[300:], y[300:])
 for feature in range(3):
     broken = x[300:].clone()
+    # Создаём случайную перестановку индексов для перемешивания объектов.
     broken[:, feature] = broken[torch.randperm(100), feature]
     print('Признак', feature, 'падение качества:', baseline-accuracy(model, broken, y[300:]))

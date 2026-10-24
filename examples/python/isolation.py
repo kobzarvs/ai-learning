@@ -1,11 +1,6 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,16 +32,18 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Создадим обычное облако точек и добавим одну точку далеко от остальных. Будем случайно разрезать плоскость и считать, сколько разрезов нужно, чтобы оставить выбранную точку одну. Проверим, действительно ли далёкую точку обычно проще отделить. Это идея поиска необычных объектов; нейросеть здесь не обучается.
+# Соединяем тензоры вдоль уже существующего измерения dim.
+# Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.cat([torch.randn(100, 2)*0.3, torch.tensor([[5.,5.]])])
 def depth(values, index, level=0):
     if len(values)<=1 or level>=30:
         return level
+    # Генерируем случайные целые числа; верхняя граница диапазона не включается.
     feature = int(torch.randint(0, values.shape[1], (1,)))
     low, high = values[:, feature].min(), values[:, feature].max()
     if high == low:
         return level
+    # Генерируем случайные числа, равномерно распределённые от 0 до 1.
     cut = low + torch.rand(())*(high-low)
     side = values[:, feature] < cut
     keep = side == side[index]

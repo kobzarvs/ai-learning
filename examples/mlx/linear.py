@@ -21,19 +21,27 @@ print("MLX | устройство:", requested, "| dtype: float32")
 def fit(model, x, y, steps=160, classification=False, rate=0.02):
     def loss_fn(model, x, y):
         prediction = model(x)
+        # Измеряем ошибку классификации по исходным оценкам классов и верным меткам.
+        # Усредняем значения вдоль указанной оси или по всему массиву.
         return (nn.losses.cross_entropy(prediction, y, reduction="mean") if classification
                 else mx.mean(mx.square(prediction-y)))
+    # Вычисляем ошибку и градиенты по обучаемым параметрам модели MLX.
     value_and_grad = nn.value_and_grad(model, loss_fn)
+    # Adam обновляет параметры, учитывая историю их градиентов.
     optimizer = optim.Adam(learning_rate=rate, bias_correction=True)
     for _ in range(steps):
         loss, grads = value_and_grad(model, x, y)
+        # Применяем вычисленные градиенты к параметрам модели.
         optimizer.update(model, grads)
-        # MLX вычисляет лениво: материализуем веса и состояние каждого шага.
+        # MLX откладывает расчёт до запроса результата.
+        # Здесь выполняем накопленные вычисления весов, состояния и ошибки.
         mx.eval(model.parameters(), optimizer.state, loss)
     return loss.item()
 
+# Создаём искусственные данные из нормального распределения со средним 0.
 x = mx.random.normal((300, 2))
 y = 3*x[:, :1]-2*x[:, 1:]+0.7+0.1*mx.random.normal((300, 1))
+# Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(2, 1)
 fit(model, x[:240], y[:240], steps=300)
 error = mx.mean(mx.square(model(x[240:])-y[240:])).item()

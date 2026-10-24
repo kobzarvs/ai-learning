@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,30 +34,40 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_regression(model, x, y, steps=200):
+    # AdamW обновляет параметры по градиентам.
+    # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.0)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
         loss = F.mse_loss(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
-# Дадим сети 12 чисел по очереди и попросим назвать их среднее (сумму, поделённую на количество чисел). Сеть должна сохранять сведения о прочитанных числах во внутренней памяти, а не видеть сразу весь список. После обучения сравним её ответ с обычным расчётом на новых списках.
+# Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(300, 12, 1)
 y = x.mean(dim=1)
 class SequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
+        # LSTM передаёт скрытое состояние и память от одного шага последовательности к
+        # следующему.
         self.memory = nn.LSTM(1, 16, batch_first=True)
+        # Линейный слой учится преобразованию y = x @ W.T + b.
         self.output = nn.Linear(16, 1)
     def forward(self, values):
         states, _ = self.memory(values)
         return self.output(states[:, -1])
 model = SequenceModel()
 fit_regression(model, x[:240], y[:240])
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     print('Ошибка на новых последовательностях:', F.mse_loss(model(x[240:]), y[240:]).item())

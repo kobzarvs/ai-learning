@@ -1,11 +1,6 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,15 +32,16 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def points(count=320):
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 2)
     y = (x[:, 0] + 0.5 * x[:, 1] > 0).long()
     return x, y
 
-# У нас есть точки, для которых категории уже известны, и новые точки без ответов. Для каждой новой точки найдём трёх ближайших соседей по расстоянию между координатами. Выберем категорию, за которую проголосовало большинство этих соседей. Отдельную нейросеть здесь обучать не требуется: решение опирается на сохранённые примеры.
 x, y = points(240)
+# Вычисляем расстояния между каждой парой объектов из двух наборов.
 distance = torch.cdist(x[180:], x[:180])
+# Находим k крайних значений и их индексы; largest=False выбирает наименьшие.
 neighbors = distance.topk(3, largest=False).indices
 prediction = y[:180][neighbors].float().mean(1).ge(0.5).long()
 print('Верно на новых точках:', prediction.eq(y[180:]).float().mean().item())

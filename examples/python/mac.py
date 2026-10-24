@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,18 +34,22 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Проверим, может ли PyTorch выполнять вычисления на графическом процессоре Mac. Если может, перенесём туда маленькую модель и данные; иначе используем обычный процессор. Выполним один шаг обучения: посчитаем ошибку и изменим настройки модели. В выводе увидим, какое устройство действительно использовалось.
-# device выбран общим параметром --device cpu / cuda / mps / auto выше.
+# Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(2, 1).to(device)
+# Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(64, 2, device=device)
 y = x.sum(1, keepdim=True)
+# AdamW обновляет параметры по градиентам.
+# Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.02)
 for _ in range(150):
+    # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
     loss = F.mse_loss(model(x), y)
-    optimizer.zero_grad(set_to_none=True); loss.backward(); optimizer.step()
-if device.type == 'mps':
-    torch.mps.synchronize()
-elif device.type == 'cuda':
-    torch.cuda.synchronize()
-print('Устройство:', device, 'ошибка:', loss.detach().cpu().item())
+    # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
+    optimizer.zero_grad(set_to_none=True)
+    # Вычисляем градиенты ошибки по обучаемым параметрам.
+    loss.backward()
+    # Обновляем обучаемые параметры по рассчитанным градиентам.
+    optimizer.step()
+# item() дожидается готовности результата и возвращает обычное число.
+print('Устройство:', device, 'ошибка:', loss.detach().item())

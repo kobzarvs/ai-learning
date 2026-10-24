@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,34 +34,42 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_classifier(model, x, y, steps=160):
     # Обучаем только на переданной учебной части данных.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.001)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # Сравниваем оценки классов с правильными метками; меньше — лучше.
         loss = F.cross_entropy(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
     # argmax выбирает номер категории с наибольшей оценкой.
     return float((model(x).argmax(dim=-1) == y).float().mean())
 
 def points(count=320):
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 2)
     y = (x[:, 0] + 0.5 * x[:, 1] > 0).long()
     return x, y
 
-# Создадим точки с категориями, определёнными настоящим правилом. Одну сеть обучим по правильным ответам, другую — по случайно перемешанным. Сравним результат на учебных примерах и новых точках. Опыт показывает разницу между запоминанием ответов и обобщением (умением применять выученное правило к новым данным).
 x, y = points(400)
 for random_labels in [False, True]:
     labels = y[:300].clone()
+    # Создаём случайную перестановку индексов для перемешивания объектов.
     if random_labels: labels = labels[torch.randperm(len(labels))]
+    # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
+    # Линейный слой учится преобразованию y = x @ W.T + b.
     model = nn.Sequential(nn.Linear(2, 64), nn.SiLU(), nn.Linear(64, 2))
     fit_classifier(model, x[:300], labels, steps=200)
     print('Случайные метки:', random_labels,

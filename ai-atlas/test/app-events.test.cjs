@@ -24,8 +24,10 @@ function setup({spaces=false}={}){
  const button=new Element('fake-card-button','BUTTON',canvas);button.dataset.open='cnn';
  const term=new Element('fake-term','ABBR',button);term.dataset.term='CNN';term.classes.add('term');
  const location={hash:''},history={replaceState(_a,_b,hash){location.hash=hash;}};
- const storage=new Map();
- const context={structuredClone,crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
+ const storage=new Map(),clipboard=[],downloads=[],blobs=new Map();
+ const objectURLs={createObjectURL(blob){const id='blob:'+blobs.size;blobs.set(id,blob);return id;},revokeObjectURL(id){blobs.delete(id);}};
+ doc.createElement=tag=>{const el=new Element('',tag.toUpperCase());el.click=()=>downloads.push({name:el.download,blob:blobs.get(el.href)});return el;};
+ const context={structuredClone,Blob,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
  win.AtlasCore=C;win.ATLAS_DATA=data;win.innerWidth=1440;win.innerHeight=900;
  if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
@@ -36,7 +38,7 @@ function setup({spaces=false}={}){
   call(doc,true);if(!e.stopped&&inCanvas)call(canvas,true);if(!e.stopped&&inCanvas)call(canvas,false);if(!e.stopped&&!inCanvas)call(target,false);if(!e.stopped)call(doc,false);
   return e;
  }
- return {elements,canvas,doc,win,button,term,fire,location,storage,make:(id,tag='BUTTON',parent=canvas,dataset={})=>{const e=new Element(id,tag,parent);e.dataset=dataset;return e;}};
+ return {elements,canvas,doc,win,button,term,fire,location,storage,clipboard,downloads,make:(id,tag='BUTTON',parent=canvas,dataset={})=>{const e=new Element(id,tag,parent);e.dataset=dataset;return e;}};
 }
 test('actual handlers pan over a card, survive Shift-up and suppress its click, then open normally',()=>{
  const {elements,canvas,button,fire,location}=setup();
@@ -171,7 +173,7 @@ test('real readers close on backdrop clicks while unsaved note input survives ba
  s.fire('pointerdown',editor,{clientX:-10});s.fire('click',editor,{clientX:-10});assert.equal(editor.open,true);
  assert.equal(s.fire('cancel',editor).defaultPrevented,true);assert.equal(s.elements.get('editor-title').value,'Не потерять');
 });
-test('switching launch settings preserves scroll while updating the selected option',()=>{
+test('switching devices preserves scroll and updates visible, copied and downloaded programs together',async()=>{
  const s=setup({spaces:true});s.fire('click',s.button);
  s.fire('click',s.make('python','BUTTON',s.canvas,{read:'python:cnn'}));
  const content=s.elements.get('reader-content');
@@ -182,8 +184,23 @@ test('switching launch settings preserves scroll while updating the selected opt
   const attr=key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase());
   assert.match(content.innerHTML,new RegExp('data-'+attr+'="'+value+'" aria-pressed="true"'));
  };
- for(const device of ['cuda','mps','cpu','mps','cpu'])choose('launchDevice',device);
- for(const platform of ['windows','unix'])choose('launchPlatform',platform);
+ for(const device of ['cuda','mps','cpu','mps','cpu']){
+  choose('launchDevice',device);
+  assert.doesNotMatch(content.innerHTML,/data-launch-platform|Операционная система|PowerShell/);
+  const plain=html=>html.replace(/<[^>]*>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');
+  const visible=plain(content.innerHTML.match(/<code class="language-python">([\s\S]*?)<\/code>/)[1]);
+  s.fire('click',s.make('copy','BUTTON',null,{copyCode:'python'}));
+  assert.equal(s.clipboard.at(-1),visible);
+  assert.ok(visible.includes('device = torch.device("'+device+'")'));
+  assert.doesNotMatch(visible,/argparse|SUPPORTED_DEVICES|requested_device/);
+  s.fire('click',s.make('download','BUTTON',null,{downloadCode:'python'}));
+  const download=s.downloads.at(-1);
+  assert.equal(download.name,'cnn-'+device+'.py');
+  assert.equal(await download.blob.text(),visible);
+  s.fire('click',s.make('copy-run','BUTTON',null,{copyCode:'run'}));
+  assert.ok(s.clipboard.at(-1).endsWith('/'+download.name));
+  assert.equal(content.scrollTop,640);
+ }
  for(const mode of ['container','local'])choose('launchMode',mode);
  s.fire('click',s.make('rust','BUTTON',null,{readerTab:'rust'}));
  assert.equal(content.scrollTop,0,'a different lesson tab starts at the beginning');

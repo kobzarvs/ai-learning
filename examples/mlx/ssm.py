@@ -23,6 +23,7 @@ decay = mx.array([0.1, 0.5, 0.8, 0.95])
 outputs = []
 for t in range(30):
     state = decay*state+(1 if t == 3 else 0)
+    # Усредняем значения вдоль указанной оси или по всему массиву.
     outputs.append(mx.mean(state).item())
 print("Ответ после импульса:", outputs[3:12])
 assert outputs[3] > outputs[8] > outputs[20] > 0

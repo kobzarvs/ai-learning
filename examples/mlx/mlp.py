@@ -21,21 +21,32 @@ print("MLX | устройство:", requested, "| dtype: float32")
 def fit(model, x, y, steps=160, classification=False, rate=0.02):
     def loss_fn(model, x, y):
         prediction = model(x)
+        # Измеряем ошибку классификации по исходным оценкам классов и верным меткам.
+        # Усредняем значения вдоль указанной оси или по всему массиву.
         return (nn.losses.cross_entropy(prediction, y, reduction="mean") if classification
                 else mx.mean(mx.square(prediction-y)))
+    # Вычисляем ошибку и градиенты по обучаемым параметрам модели MLX.
     value_and_grad = nn.value_and_grad(model, loss_fn)
+    # Adam обновляет параметры, учитывая историю их градиентов.
     optimizer = optim.Adam(learning_rate=rate, bias_correction=True)
     for _ in range(steps):
         loss, grads = value_and_grad(model, x, y)
+        # Применяем вычисленные градиенты к параметрам модели.
         optimizer.update(model, grads)
-        # MLX вычисляет лениво: материализуем веса и состояние каждого шага.
+        # MLX откладывает расчёт до запроса результата.
+        # Здесь выполняем накопленные вычисления весов, состояния и ошибки.
         mx.eval(model.parameters(), optimizer.state, loss)
     return loss.item()
 
+# Генерируем значения равномерно внутри указанного интервала.
 x = mx.random.uniform(-1, 1, (500, 2))
+# Суммируем значения вдоль выбранной оси или по всему массиву.
 y = (mx.sum(mx.square(x), axis=1) < 0.45).astype(mx.int32)
+# Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
+# Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(2, 24), nn.SiLU(), nn.Linear(24, 2))
 fit(model, x[:400], y[:400], classification=True)
+# Находим индекс наибольшей оценки — выбранную моделью категорию.
 accuracy = mx.mean(mx.argmax(model(x[400:]), axis=1) == y[400:]).item()
 print("Доля верных ответов на новых точках:", accuracy)
 assert accuracy > 0.9

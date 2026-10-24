@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,20 +34,25 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_classifier(model, x, y, steps=160):
     # Обучаем только на переданной учебной части данных.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.001)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # Сравниваем оценки классов с правильными метками; меньше — лучше.
         loss = F.cross_entropy(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
     # argmax выбирает номер категории с наибольшей оценкой.
     return float((model(x).argmax(dim=-1) == y).float().mean())
@@ -58,6 +60,7 @@ def accuracy(model, x, y):
 def stripes(count=240):
     # 0 = вертикальная полоса, 1 = горизонтальная. Остальное — шум.
     y = torch.randint(0, 2, (count,))
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 1, 8, 8) * 0.12
     for i, label in enumerate(y):
         pos = int(torch.randint(1, 6, (1,)))
@@ -67,8 +70,9 @@ def stripes(count=240):
             x[i, 0, pos:pos+2, :] += 1
     return x, y
 
-# Создадим маленькие картинки размером 8 × 8 пикселей (цветных точек изображения): на каждой будет вертикальная или горизонтальная полоса. Добавим случайные помехи, чтобы картинки отличались друг от друга. Научим сеть определять направление полосы и проверим её на картинках, которые не использовали при обучении.
 x, y = stripes()
+# Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
+# Свёртка применяет обучаемые фильтры к небольшим участкам изображения.
 model = nn.Sequential(
     nn.Conv2d(1, 8, 3, padding=1), nn.SiLU(),
     nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(8, 2),

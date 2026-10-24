@@ -1,11 +1,8 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,31 +34,38 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_classifier(model, x, y, steps=160):
     # Обучаем только на переданной учебной части данных.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.001)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # Сравниваем оценки классов с правильными метками; меньше — лучше.
         loss = F.cross_entropy(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+# Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
     # argmax выбирает номер категории с наибольшей оценкой.
     return float((model(x).argmax(dim=-1) == y).float().mean())
 
 def points(count=320):
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 2)
     y = (x[:, 0] + 0.5 * x[:, 1] > 0).long()
     return x, y
 
-# Создадим точки с двумя координатами и известной категорией для каждой. Сначала проверим случайно созданную сеть, затем будем показывать примеры и исправлять её веса (внутренние настраиваемые числа) по ошибкам. В конце снова проверим на точках, которых она не видела при обучении. Сравним долю верных ответов до и после.
 x, y = points()
+# Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
+# Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(2, 12), nn.SiLU(), nn.Linear(12, 2))
 print('До обучения:', accuracy(model, x[240:], y[240:]))
 loss = fit_classifier(model, x[:240], y[:240])

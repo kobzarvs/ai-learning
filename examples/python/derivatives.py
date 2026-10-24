@@ -1,11 +1,6 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,12 +32,13 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Возьмём функцию x² + 2x и точку x = 3. Найдём производную (число, показывающее, как быстро меняется результат при небольшом изменении входа) двумя способами: автоматически в PyTorch и через два близких значения функции. Сравним результаты с правильным значением 8. Это основа вычислений, которые помогают обучать модели.
+# Создаём тензор — числовой массив — из указанных значений.
 x = torch.tensor(3., requires_grad=True)
 y = x.square()+2*x
+# Вычисляем градиенты ошибки по обучаемым параметрам.
 y.backward()
 h = 0.001
+# Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
 finite_difference = ((x.detach()+h).square()+2*(x.detach()+h)-y.detach())/h
 print('Производная PyTorch:', x.grad.item())
 print('Численная оценка:', finite_difference.item())

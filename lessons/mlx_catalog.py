@@ -1,8 +1,44 @@
 """Native MLX counterparts; no PyTorch import or bridge."""
 from textwrap import dedent
 from catalog import LESSONS
+from display_source import listing, MLX_RUNTIMES
 
 MLX = {}
+EXPLANATIONS = {
+    'knn': 'Массив distances хранит квадраты расстояний от новых объектов до учебных. '
+           'Функция mx.argsort возвращает индексы в порядке возрастания расстояния; '
+           'срез [:, :3] выбирает трёх ближайших соседей. Их категории голосуют за ответ.',
+    'derivatives': 'Производная показывает, насколько изменится выход при малом изменении входа. '
+                   'Вызов mx.grad(f) создаёт функцию производной для f; затем вычисляем её в точке x.',
+    'mac': 'MLX размещает новые массивы на устройстве, выбранном через mx.set_default_device. '
+           'Вызов mx.synchronize() дожидается окончания расчётов. Модель и данные должны '
+           'находиться на одном устройстве; недоступное устройство вызывает понятную ошибку.',
+    'lora': 'Основная матрица base хранит неизменное преобразование восьми входных чисел '
+            'в восемь выходных. Знак @ означает матричное умножение. Модель Adapter содержит '
+            'только две обучаемые матрицы, self.a и self.b: первая сжимает восемь чисел '
+            'до двух, вторая возвращает восемь. Их результат прибавляется к основному '
+            'ответу. Функция fit обновляет параметры модели, а base находится вне неё.',
+}
+EXERCISES = {
+    'transformer': 'Функция attention вычисляет внимание: взвешивает сведения других позиций '
+                   'по их сходству с запросом. В двух вызовах, создающих answer и changed, '
+                   'замени последний аргумент True на False. Он задаёт запрет на будущие '
+                   'позиции. Теперь запрет снят: проверь, меняются ли ранние ответы '
+                   'после изменения последнего элемента.',
+    'derivatives': 'В переменной numerical вычисляется численная оценка производной. '
+                   'Число 0.001 — расстояние между двумя точками. Замени его в числителе '
+                   'и знаменателе сначала на 0.1, затем на 0.000001. Почему слишком '
+                   'малый шаг усиливает влияние ошибок округления?',
+    'optimization': 'Здесь веса обновляются вручную. Добавь накопление предыдущего '
+                    'направления: до цикла задай velocity = 0, на каждом шаге вычисляй '
+                    'velocity = 0.9 * velocity + gradient и вычитай rate * velocity '
+                    'из parameter. Переменная velocity хранит накопленное направление, '
+                    'gradient — текущий градиент, rate — размер шага. Сравни уменьшение '
+                    'ошибки с исходным вариантом при одинаковой начальной точке.',
+    'mac': 'Сравни время обучения на 64 и 65536 строках. Перед началом и концом замера '
+           'вызови mx.synchronize(): эта функция ждёт окончания вычислений. '
+           'Проверь, когда ускорение расчётов покрывает затраты на их запуск.',
+}
 PREFIX = '''# Python 3.14 · MLX 0.32.4
 import argparse
 import platform
@@ -34,7 +70,8 @@ def fit(model, x, y, steps=160, classification=False, rate=0.02):
     for _ in range(steps):
         loss, grads = value_and_grad(model, x, y)
         optimizer.update(model, grads)
-        # MLX вычисляет лениво: материализуем веса и состояние каждого шага.
+        # MLX откладывает расчёт до запроса результата.
+        # Здесь выполняем накопленные вычисления весов, состояния и ошибки.
         mx.eval(model.parameters(), optimizer.state, loss)
     return loss.item()
 '''
@@ -43,10 +80,21 @@ def add(ids, code, *, train=False, limits=None):
     for topic in ids.split():
         source = LESSONS[topic]
         MLX[topic] = dict(goal=source['goal'], code=PREFIX+(TRAIN if train else '')+'\n'+dedent(code).strip()+'\n',
-            explanation='MLX создаёт массивы и параметры на выбранном устройстве. Для обучения используются собственные градиенты и оптимизатор MLX; mx.eval завершает ленивые вычисления. '+source['explanation'],
-            expected=source['expected'], exercise=source['exercise'], kind=source['kind'],
+            explanation=('MLX создаёт массивы на выбранном устройстве и откладывает расчёты до запроса результата. '
+                         + ('Вызов mx.eval в цикле обучения выполняет накопленные вычисления. ' if train else '')
+                         + EXPLANATIONS.get(topic, source['explanation'])),
+            expected=source['expected'], exercise=EXERCISES.get(topic, source['exercise']), kind=source['kind'],
             limits=limits or source['limits'],
             parity='Та же учебная задача. MLX использует собственный генератор случайных чисел; численные результаты и скорость могут отличаться.')
+        MLX[topic]['display'] = listing(
+            '# Python 3.14 · MLX 0.32.4\nimport mlx.core as mx\nimport mlx.nn as nn\n'
+            'import mlx.optimizers as optim\nfrom mlx.utils import tree_flatten\n',
+            (TRAIN if train else '')+'\n'+dedent(code).strip(), MLX_RUNTIMES)
+        MLX[topic]['code'] = PREFIX+'\n'+MLX[topic]['display']['body']
+        MLX[topic]['devices'] = ['cpu'] if 'stream=mx.cpu' in code else ['cpu', 'metal']
+        MLX[topic]['deviceNote'] = 'В этом опыте используются операции линейной алгебры, для которых выбран явный запуск на CPU.'
+        if topic == 'mac':
+            MLX[topic]['expected'] = 'В начале выводится выбранное устройство: CPU или Metal. Ошибка обученной модели должна быть меньше 0.05.'
 
 add('linear classification lab-table', '''
 x = mx.random.normal((300, 2))
@@ -239,7 +287,7 @@ samples = mx.sort(ga/(ga+gb))
 low, high = samples[249].item(), samples[9749].item()
 print("Оценка вероятности:", a/(a+b), "95% интервал:", [low, high])
 assert 0.3 < low < 0.7 < high < 0.99
-''',limits='Генерация Beta через суммы логарифмов рассчитана на целые параметры. Квантили являются оценкой по 10 000 случайных выборок.')
+''',limits='Бета-распределение описывает неопределённость вероятности от 0 до 1. Здесь оно получается через суммы логарифмов; этот способ рассчитан на целые параметры. Квантили являются оценкой по 10 000 случайных выборок.')
 add('factorweights', '''
 weights = mx.random.normal((64,4))@mx.random.normal((4,32))+0.01*mx.random.normal((64,32))
 # SVD выполняется явно на CPU; последующие умножения — на выбранном устройстве.
@@ -249,7 +297,7 @@ x = mx.random.normal((20,32))
 error = mx.mean(mx.square((x@right.T)@left.T-x@weights.T)).item()
 print("Ошибка:", error, "параметров:", weights.size, "->", left.size+right.size)
 assert error < 0.02
-''',limits='SVD явно выполняется на CPU. Этот опыт проверяет сжатие весов; он не измеряет ускорение декомпозиции на Metal.')
+''',limits='Сингулярное разложение (SVD) явно выполняется на процессоре. Этот опыт проверяет сжатие весов; он не измеряет ускорение декомпозиции на Metal.')
 add('reservoir', '''
 signal = mx.sin(mx.arange(260)*0.13)
 w, input_weights = mx.random.normal((24,24))*0.08, mx.random.normal((24,))*0.3
@@ -263,7 +311,7 @@ readout = mx.linalg.solve(a.T@a+0.001*mx.eye(24), a.T@b, stream=mx.cpu)
 error = mx.mean(mx.square(x[200:]@readout-y[200:])).item()
 print("Ошибка на более позднем участке:", error)
 assert error < 0.02
-''',limits='Внутренние веса не обучаются. Решение линейной системы для выхода явно выполняется на CPU; состояния и прогноз можно считать на Metal.')
+''',limits='Внутренние веса не обучаются. Решение линейной системы для выхода требует процессора; в этом варианте весь опыт запускается на CPU.')
 add('compactarch specialblocks tinyml', '''
 x = mx.random.normal((1,24,24,16))
 regular = nn.Conv2d(16,32,3,padding=1,bias=False)

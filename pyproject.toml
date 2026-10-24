@@ -15,7 +15,7 @@ mlx-cpu = ["mlx[cpu]==0.32.4; sys_platform == 'linux'"]
 package = false
 conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
 
-# Linux containers and Windows use the CPU build. Native macOS uses the PyPI
+# Linux containers use the CPU build. Native macOS uses the PyPI
 # wheel, which includes MPS support when supported by the machine.
 [tool.uv.sources]
 torch = [

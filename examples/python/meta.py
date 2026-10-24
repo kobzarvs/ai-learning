@@ -1,11 +1,9 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
 import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,29 +35,41 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def fit_regression(model, x, y, steps=200):
+    # AdamW обновляет параметры по градиентам.
+    # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.02, weight_decay=0.0)
     model.train()
     for _ in range(steps):
+        # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
         loss = F.mse_loss(model(x), y)
+        # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+        # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+    # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
-# Будем учить модель сразу на семействе похожих задач: у каждой своё правило «умножить вход на число и прибавить другое число». После каждой задачи скорректируем общие начальные настройки. Затем дадим новое правило и всего пять примеров для быстрой подстройки. Проверим, насколько уменьшится ошибка после десяти шагов обучения.
+# Линейный слой учится преобразованию y = x @ W.T + b.
 initial = nn.Linear(1, 1)
 for _ in range(120):
+    # Создаём независимую копию модели, чтобы дальнейшее обучение не меняло оригинал.
     task = copy.deepcopy(initial)
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(12, 1)
-    slope = 1+torch.rand(()); bias = torch.rand(())*0.4
+    # Генерируем случайные числа, равномерно распределённые от 0 до 1.
+    slope = 1+torch.rand(())
+    bias = torch.rand(())*0.4
     fit_regression(task, x, slope*x+bias, steps=10)
+    # Не записываем эти операции в граф для автоматического вычисления градиентов.
     with torch.no_grad():
         for shared, adapted in zip(initial.parameters(), task.parameters()):
             shared.lerp_(adapted, 0.15)
-x = torch.randn(30, 1); y = 1.7*x+0.15
+x = torch.randn(30, 1)
+y = 1.7*x+0.15
 adapted = copy.deepcopy(initial)
 fit_regression(adapted, x[:5], y[:5], steps=10)
 with torch.no_grad():

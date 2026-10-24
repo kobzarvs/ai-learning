@@ -1,11 +1,6 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,8 +32,7 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Смоделируем один условный нейрон, который постепенно накапливает входной сигнал. Когда накопленное значение достигает порога, он выдаёт короткий импульс — число 1 — и уменьшает накопление. На остальных шагах выдаётся 0. Посмотрим, как часто возникают импульсы при постоянном входе; обучения сети здесь нет.
+# Создаём тензор — числовой массив — из указанных значений.
 current = torch.tensor([0.4]*20)
 voltage, spikes = torch.tensor(0.), []
 for value in current:

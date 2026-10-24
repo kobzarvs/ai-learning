@@ -1,11 +1,6 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,12 +32,12 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Представим, что модель предлагает три действия: читать, отправить и удалить. Даже если она больше всего хочет удалить, отдельное правило запретит это действие. Пересчитаем выбор среди разрешённых вариантов и проверим, что удаление не выбрано. Это демонстрация сочетания оценок модели с явными правилами, без обучения сети.
 # Модель предлагает действия: читать, отправить, удалить.
 logits = torch.tensor([[1., 2., 5.]])
 allowed = torch.tensor([[True, True, False]])
+# Заменяем элементы, отмеченные логической маской, указанным значением.
 restricted = logits.masked_fill(~allowed, float('-inf'))
+# Преобразуем оценки в веса с суммой 1 вдоль выбранного измерения.
 probabilities = restricted.softmax(1)
 action = probabilities.argmax(1).item()
 print('Вероятности допустимых действий:', probabilities.tolist())

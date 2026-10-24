@@ -5,7 +5,7 @@ function create(o){
  const $=id=>document.getElementById(id),canvas=$('canvas'),world=$('workspace-world');
  const art=(id,options)=>scope.AtlasArt?.render(id,options)||'';
  const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
- let launchMode='local',launchPlatform='unix',currentLaunch=null;
+ let launchMode='local',currentLaunch=null;
  const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
  const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
  try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст. Импортируй резервную копию.');}
@@ -80,12 +80,11 @@ function create(o){
   return `<div class="code-block"><header><span>${esc(label)}</span><div><button data-copy-code="${id}">Копировать</button><button data-download-code="${id}">Скачать ↓</button></div></header><pre tabindex="0" class="language-${language}" aria-label="Код: ${esc(label)}"><code class="language-${language}">${highlighted}</code></pre></div>`;
  }
  function launchGuide(id,lesson,mode){
-  currentLaunch=scope.AtlasLaunch.plan(id,lesson,meta,{language:mode,mode:launchMode,platform:launchPlatform,device:launchDevices[mode]});
+  currentLaunch=scope.AtlasLaunch.plan(id,lesson,meta,{language:mode,mode:launchMode,device:launchDevices[mode]});
   const choice=`<div class="launch-choice" role="group" aria-label="Способ запуска">${[['local','На компьютере'],['container','Dev Container']].map(([key,label])=>`<button data-launch-mode="${key}" aria-pressed="${launchMode===key}">${label}</button>`).join('')}</div>`;
-  const devices=`<div class="launch-platform" role="group" aria-label="Устройство вычислений">${scope.AtlasLaunch.deviceChoices[mode].map(([key,label])=>`<button data-launch-device="${key}" aria-pressed="${launchDevices[mode]===key}">${label}</button>`).join('')}</div>`;
-  const platform=launchMode==='local'?`<div class="launch-platform" role="group" aria-label="Операционная система">${[['unix','macOS / Linux'],['windows','Windows PowerShell']].map(([key,label])=>`<button data-launch-platform="${key}" aria-pressed="${launchPlatform===key}">${label}</button>`).join('')}</div>`:'';
+  const devices=`<div class="launch-devices" role="group" aria-label="Устройство вычислений">${scope.AtlasLaunch.deviceChoices[mode].map(([key,label])=>`<button data-launch-device="${key}" aria-pressed="${launchDevices[mode]===key}">${label}</button>`).join('')}</div>`;
   const steps=currentLaunch.steps.map(step=>`<li><h3>${esc(step.title)}</h3><p>${rich(step.body,true)}</p>${(step.links||[]).map(([label,url])=>`<a class="setup-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`).join('')}${step.action?`<a class="inline-primary container-open" href="${esc(step.action.url)}" target="_blank" rel="noopener noreferrer">${esc(step.action.label)} ↗</a>`:''}${(step.blocks||[]).map(b=>codeBlock(b.code,b.id,b.label,b.language)).join('')}</li>`).join('');
-  return `<section class="reading-section launch-guide">${sectionHeading('Подготовка и запуск')}${choice}${currentLaunch.prerequisite?`<p class="setup-prerequisite">${rich(currentLaunch.prerequisite,true)}</p>`:''}${platform}${devices}${currentLaunch.blocked?`<p class="setup-prerequisite" role="status">${esc(currentLaunch.blocked)}</p>`:''}<ol class="setup-steps">${steps}</ol>${currentLaunch.source?`<details class="container-source"><summary>Посмотреть исходный код этого примера</summary>${codeBlock(currentLaunch.source.code,currentLaunch.source.id,currentLaunch.source.label,currentLaunch.source.language)}</details>`:''}</section>`;
+  return `<section class="reading-section launch-guide">${sectionHeading('Подготовка и запуск')}${choice}${devices}${currentLaunch.prerequisite?`<p class="setup-prerequisite">${rich(currentLaunch.prerequisite,true)}</p>`:''}${currentLaunch.blocked?`<p class="setup-prerequisite" role="status">${esc(currentLaunch.blocked)}</p>`:''}<ol class="setup-steps">${steps}</ol>${currentLaunch.source?`<details class="container-source"><summary>Посмотреть исходный код этого примера</summary>${codeBlock(currentLaunch.source.code,currentLaunch.source.id,currentLaunch.source.label,currentLaunch.source.language)}</details>`:''}</section>`;
  }
 
  function read(card,tab){
@@ -166,7 +165,6 @@ function create(o){
   if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
   if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';refreshLaunch();}
   if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;refreshLaunch();}}
-  if(b.dataset.launchPlatform&&readerCard){launchPlatform=b.dataset.launchPlatform==='windows'?'windows':'unix';refreshLaunch();}
   if(b.id==='exercise-note'){const l=lessons[active];closeReader();editor('note');$('editor-title').value='Опыт: '+index.get(active).name;$('editor-body').value='Мой вопрос\n'+l.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
   if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>{b.textContent='Скопировано ✓';setTimeout(()=>b.textContent='Копировать',1800);},()=>{b.textContent='Используй «Скачать»';});}else b.textContent='Используй «Скачать»';}
   if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':id==='rust'?'main.rs':['python','mlx'].includes(id)?filename:id+'.txt',codeFor(id));}

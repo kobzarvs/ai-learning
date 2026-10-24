@@ -1,11 +1,7 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
-from torch import nn
 from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,17 +33,19 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
 def points(count=320):
+    # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(count, 2)
     y = (x[:, 0] + 0.5 * x[:, 1] > 0).long()
     return x, y
 
-# Возьмём точки двух категорий и превратим каждую в длинный код из чисел −1 и +1. Сложим коды учебных точек каждой категории и получим два образца — прототипа (общих описания категории). Новую точку отнесём к категории с более похожим образцом. Проверим долю верных ответов без обычного пошагового обучения нейросети.
 x, y = points(300)
 projection = torch.randn(2, 1024)
+# Для каждого элемента выбираем одно из двух значений по логическому условию.
 codes = torch.where(x@projection>=0, 1., -1.)
+# Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 prototypes = torch.stack([codes[:240][y[:240]==k].sum(0) for k in range(2)])
+# Нормируем векторы; по умолчанию их евклидова длина становится равной 1.
 prototypes = F.normalize(prototypes, dim=1)
 prediction = (F.normalize(codes[240:], dim=1)@prototypes.T).argmax(1)
 print('Доля верных ответов:', prediction.eq(y[240:]).float().mean().item())

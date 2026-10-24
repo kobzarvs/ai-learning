@@ -1,11 +1,7 @@
 # Python 3.14 · PyTorch 2.14.1
 # Данные создаются внутри программы; ничего скачивать не нужно.
-import math
-import copy
 import torch
 from torch import nn
-from torch.nn import functional as F
-
 
 SUPPORTED_DEVICES = ['cpu', 'cuda', 'mps']
 DEVICE_NOTE = 'GPU требует поддержки операций этого опыта установленной версией фреймворка. Автоматический переход на CPU при ошибке отключён.'
@@ -37,14 +33,15 @@ torch.manual_seed(7)
 torch.set_num_threads(1)
 print("PyTorch", torch.__version__, "| устройство:", device, "| dtype: float32")
 
-
-# Представь четыре объекта со связями между ними, например четыре станции с дорогами. Каждый объект хранит два числа и получает среднее своих чисел и чисел соседей. Проверим, что объект без соседей сохраняет собственные сведения. Так устроен один шаг обмена в графе (наборе объектов и связей); обучения в этом примере нет.
+# Создаём тензор — числовой массив — из указанных значений.
 adjacency = torch.tensor([[1.,1,0,0],[1,1,1,0],[0,1,1,0],[0,0,0,1]])
 features = torch.tensor([[1.,0],[0,1],[1,1],[8,8]])
 weights = adjacency / adjacency.sum(1, keepdim=True)
+# Линейный слой учится преобразованию y = x @ W.T + b.
 layer = nn.Linear(2, 3, bias=False)
 messages = weights @ features
 answer = layer(messages)
 print('Сведения после обмена:', messages.tolist())
 print('Изолированный объект:', messages[-1].tolist())
+# Проверяем совпадение всех значений с учётом небольшой ошибки округления.
 assert torch.allclose(messages[-1], features[-1])
