@@ -1,0 +1,29 @@
+name: Prepare reproducible environment locks
+on:
+  push:
+    branches: [atlas-environment-locks]
+permissions:
+  contents: read
+jobs:
+  locks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: '0.13.5'
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - run: uv lock
+      - run: cargo +1.98.1 generate-lockfile --manifest-path examples/rust-burn/Cargo.toml
+      - run: uv sync --locked --extra cpu
+      - run: uv pip check
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: environment-locks
+          path: |
+            uv.lock
+            examples/rust-burn/Cargo.lock

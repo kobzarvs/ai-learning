@@ -7,4 +7,4 @@ publish = false
 default-run = "linear"
 
 [dependencies]
-burn = { version = "=0.22.1", default-features = false, features = ["std", "flex", "optim"] }
+burn = { version = "=0.22.1", default-features = false, features = ["std", "flex", "optim", "linalg"] }
