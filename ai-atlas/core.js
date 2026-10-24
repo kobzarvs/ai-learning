@@ -6,15 +6,17 @@ const countLeaves=n=>n.children?n.children.reduce((a,c)=>a+countLeaves(c),0):1;
 const normalize=s=>String(s||'').toLowerCase().replace(/ё/g,'е');
 function search(index,q){const terms=normalize(q).trim().split(/\s+/).filter(Boolean);if(!terms.length)return[];return [...index.values()].filter(n=>n.parent).map(n=>{const name=normalize(n.name+' '+(n.full||'')+' '+n.id);const all=normalize([name,n.aliases,n.what,n.how,n.example,n.tasks,n.lab,n.note,n.training,n.input,n.output,n.criteria,...(n.steps||[])].join(' '));return{node:n,score:terms.every(t=>all.includes(t))?terms.reduce((v,t)=>v+(name.includes(t)?4:1),0):0};}).filter(r=>r.score).sort((a,b)=>b.score-a.score).map(r=>r.node);}
 function layout(root){
-const groups=[],cards=[],edges=[];const cw=278,ch=288,gap=32;
-function cluster(n,x,y,branch,nested){const cols=Math.min(3,n.children.length), rows=Math.ceil(n.children.length/cols);const group={id:n.id,branch,x,y,w:cols*(cw+gap)+gap,h:rows*(ch+gap)+128,nested};groups.push(group);n.children.forEach((c,i)=>cards.push({id:c.id,parent:n.id,branch,x:x+gap+(i%cols)*(cw+gap),y:y+96+Math.floor(i/cols)*(ch+gap),w:cw,h:ch}));return group;}
+const groups=[],cards=[],edges=[];const cw=360,ch=416,gap=32,header=128;
+const clusterWidth=3*(cw+gap)+gap,columnStep=clusterWidth+64,parentWidth=2*clusterWidth+128;
+function cluster(n,x,y,branch,nested){const cols=Math.min(3,n.children.length), rows=Math.ceil(n.children.length/cols);const group={id:n.id,branch,x,y,w:cols*(cw+gap)+gap,h:rows*(ch+gap)+header+gap,nested};groups.push(group);n.children.forEach((c,i)=>cards.push({id:c.id,parent:n.id,branch,x:x+gap+(i%cols)*(cw+gap),y:y+header+Math.floor(i/cols)*(ch+gap),w:cw,h:ch}));return group;}
 let x=0;
 for(const branch of root.children){if(branch.children.every(n=>!n.children)){const g=cluster(branch,x,0,branch.id,false);x+=g.w+200;continue;}
- const parent={id:branch.id,branch:branch.id,x,y:0,w:2084,h:0,nested:false};groups.push(parent);let rowY=128,maxBottom=0;
- branch.children.forEach((n,i)=>{if(i&&i%2===0)rowY=maxBottom+70;const g=cluster(n,x+32+(i%2)*1026,rowY,branch.id,true);maxBottom=Math.max(maxBottom,g.y+g.h);});parent.h=maxBottom+32;x+=parent.w+200;
+ const parent={id:branch.id,branch:branch.id,x,y:0,w:parentWidth,h:0,nested:false};groups.push(parent);let rowY=160,maxBottom=0;
+ branch.children.forEach((n,i)=>{if(i&&i%2===0)rowY=maxBottom+70;const g=cluster(n,x+32+(i%2)*columnStep,rowY,branch.id,true);maxBottom=Math.max(maxBottom,g.y+g.h);});parent.h=maxBottom+32;x+=parent.w+200;
 }
 const roots=new Map(groups.filter(g=>!g.nested).map(g=>[g.id,g]));
-const positions={tasks:[0,0],models:[2300,0],training:[4600,0],small:[0,roots.get('tasks').h+220],practice:[4600,roots.get('training').h+220]};
+const modelX=Math.max(roots.get('tasks').w,roots.get('small').w)+220,trainingX=modelX+roots.get('models').w+220;
+const positions={tasks:[0,0],models:[modelX,0],training:[trainingX,0],small:[0,roots.get('tasks').h+220],practice:[trainingX,roots.get('training').h+220]};
 for(const branch of root.children){const g=roots.get(branch.id),[nx,ny]=positions[branch.id],dx=nx-g.x,dy=ny-g.y;for(const item of [...groups,...cards])if(item.branch===branch.id){item.x+=dx;item.y+=dy;}}
 return{groups,cards,edges};
 }

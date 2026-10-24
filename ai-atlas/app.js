@@ -18,7 +18,7 @@ hideTerm();
 const node=index.get(id);if(!node)return;current=id;$('breadcrumb-current').innerHTML=rich(node.name);
 if(details)showDetail(id);const box=boxFor(id);const canvas=$('canvas');
 if(box){if(fit||cardById.has(id))view=C.fitBox(box,canvas.clientWidth,canvas.clientHeight,45,cardById.has(id)?1.15:1);
-else{const scale=C.clamp((canvas.clientWidth-170)/box.w,.38,1);view={scale,x:(canvas.clientWidth-box.w*scale)/2-box.x*scale,y:28-box.y*scale};}updateView();}
+else{const scale=1;view={scale,x:Math.max(90,(canvas.clientWidth-box.w)/2)-box.x,y:32-box.y};}updateView();}
 if(hash)history.replaceState(null,'','#'+encodeURIComponent(id));
 document.querySelectorAll('.nav-child').forEach(b=>b.classList.toggle('active',b.dataset.nav===id));
 closeNav();hideSearch();
