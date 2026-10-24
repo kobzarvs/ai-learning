@@ -74,7 +74,7 @@ function downloadRoute(){const text='# Мой маршрут AI Atlas\n\n'+[...r
 const tooltip=$('term-tooltip');let activeTerm=null,termTimer;
 function hideTerm(){clearTimeout(termTimer);if(activeTerm){activeTerm.removeAttribute('aria-describedby');const term=data.glossary[activeTerm.dataset.term];activeTerm.setAttribute('title',term.full+' — '+term.description);activeTerm=null;}tooltip.hidden=true;}
 function showTerm(element){
-  const term=data.glossary?.[element.dataset.term];if(!term||pan.effective==='pan')return;
+  const term=data.glossary?.[element.dataset.term];if(!term||pan.dragging||(pan.effective==='pan'&&element.closest('#canvas')))return;
   hideTerm();activeTerm=element;element.removeAttribute('title');element.setAttribute('aria-describedby','term-tooltip');
   tooltip.innerHTML=`<strong>${esc(term.full)}</strong><p>${esc(term.description)}</p>`;tooltip.hidden=false;
   const r=element.getBoundingClientRect(),t=tooltip.getBoundingClientRect();
@@ -88,6 +88,7 @@ document.addEventListener('pointerout',e=>{if(e.target.closest('.term,#term-tool
 document.addEventListener('focusin',e=>{if(e.target.matches('.term'))showTerm(e.target);else hideTerm();});
 document.addEventListener('click',e=>{const term=e.target.closest('.term');if(!term)return;if(e.target.closest('#canvas')&&pan.blocksClick(e.detail===0))return;e.preventDefault();e.stopImmediatePropagation();showTerm(term);},true);
 document.addEventListener('keydown',e=>{if(e.target.matches('.term')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showTerm(e.target);}});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.term,#term-tooltip'))hideTerm();},true);
 window.addEventListener('resize',hideTerm);$('inspector').addEventListener('scroll',hideTerm);
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.nav){navigate(b.dataset.nav,{fit:true});return;}if(b.dataset.open){navigate(b.dataset.open,{details:true});return;}if(b.dataset.result){navigate(b.dataset.result,{details:true});$('search').value='';return;}if(b.dataset.save){toggleSaved(b.dataset.save);return;}if(b.dataset.remove){toggleSaved(b.dataset.remove);return;}if(b.dataset.routeOpen){$('route-dialog').close();navigate(b.dataset.routeOpen,{details:true});return;}});
 $('toggle-nav').onclick=()=> $('navigation').hidden?openNav():closeNav();$('close-nav').onclick=closeNav;$('home').onclick=fitAll;$('overview').onclick=fitAll;$('all-tool').onclick=fitAll;$('start-tool').onclick=()=>navigate('projects',{fit:true});$('fit-current').onclick=()=>current==='root'?fitAll():navigate(current,{fit:true});$('zoom-in').onclick=()=>zoom(1.2);$('zoom-out').onclick=()=>zoom(1/1.2);$('close-detail').onclick=closeDetail;$('about-button').onclick=about;
@@ -131,7 +132,7 @@ $('canvas').addEventListener('lostpointercapture',endPointer);
 $('canvas').addEventListener('wheel',e=>{e.preventDefault();hideTerm();const r=$('canvas').getBoundingClientRect();if(Math.abs(e.deltaX)>Math.abs(e.deltaY)){view.x-=e.deltaX;view.y-=e.deltaY;updateView();}else zoom(Math.exp(-e.deltaY*.0015*(e.deltaMode===1?16:1)),e.clientX-r.left,e.clientY-r.top);},{passive:false});
 const isEditing=target=>target.closest('input,textarea,select,dialog,[contenteditable="true"]');
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideTerm();hideSearch();closeNav();if(!$('route-dialog').open)closeDetail();return;}
+  if(e.key==='Escape'){if(activeTerm){hideTerm();return;}hideSearch();closeNav();if(!$('route-dialog').open)closeDetail();return;}
   if(isEditing(e.target))return;
   if(e.key==='Shift'){pan.modifier(e.code||'Shift',true);syncPanCursor();return;}
   if(e.code==='Space'&&e.target===$('canvas')){e.preventDefault();pan.modifier('Space',true);syncPanCursor();return;}
