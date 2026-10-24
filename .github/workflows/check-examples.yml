@@ -1,0 +1,114 @@
+name: Atlas and current learning examples
+on:
+  push:
+    branches: [main, atlas-learning-refresh]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  atlas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - run: node --test ai-atlas/test/*.test.cjs
+      - run: node ai-atlas/build.mjs
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: '0.13.5'
+      - run: uv sync --locked --extra cpu
+      - run: uv pip check
+      - run: uv run --locked --extra cpu python examples/python/run_all.py --device cpu
+      - name: Check unavailable CUDA reports an actionable error
+        run: |
+          if uv run --locked --extra cpu python examples/python/lora.py --device cuda > /tmp/cuda-check.txt 2>&1; then
+            echo "Unexpected successful CUDA launch on a CPU runner"
+            exit 1
+          fi
+          grep 'недоступно' /tmp/cuda-check.txt
+      - name: Ensure generated lessons match their source
+        run: |
+          uv run --locked --extra cpu python lessons/generate.py
+          git diff --exit-code -- ai-atlas/lesson-data.js examples/python examples/rust-burn/src/bin examples/mlx
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install Rust 1.98.1
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Compile current Burn examples without deprecated APIs
+        run: cargo +1.98.1 build --locked --manifest-path examples/rust-burn/Cargo.toml --bins
+        env:
+          RUSTFLAGS: '-D deprecated'
+      - name: Run all Rust examples
+        run: |
+          for file in examples/rust-burn/src/bin/*.rs; do
+            name=$(basename "$file" .rs)
+            examples/rust-burn/target/debug/"$name"
+          done
+        env:
+          BURN_DEVICE: flex
+  mlx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: '0.13.5'
+      - run: uv sync --locked --extra mlx-cpu
+      - run: uv pip check
+      - run: uv run --locked --extra mlx-cpu python examples/mlx/run_all.py --device cpu
+  rust-gpu-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            backend: cuda
+          - os: macos-15
+            backend: metal
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Compile GPU variants (no physical GPU execution)
+        run: cargo +1.98.1 check --locked --manifest-path examples/rust-burn/Cargo.toml --features ${{ matrix.backend }} --bins
+        env:
+          RUSTFLAGS: '-D deprecated'
+  container:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Build and prepare the actual Dev Container
+        run: npx --yes @devcontainers/cli@0.89.0 up --workspace-folder .
+      - name: Run Python inside the container
+        run: npx --yes @devcontainers/cli@0.89.0 exec --workspace-folder . .venv/bin/python examples/python/lora.py
+      - name: Run Rust inside the container
+        run: npx --yes @devcontainers/cli@0.89.0 exec --workspace-folder . cargo run --locked --release --manifest-path examples/rust-burn/Cargo.toml --bin lora
+      - name: Ensure setup and execution preserve the committed dependency locks
+        run: git diff --exit-code -- uv.lock examples/rust-burn/Cargo.lock
