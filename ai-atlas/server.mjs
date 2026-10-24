@@ -6,7 +6,10 @@ const allowed = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/core.js', ['core.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
-  ['/map-data.js', ['map-data.js', 'text/javascript; charset=utf-8']]
+  ['/map-data.js', ['map-data.js', 'text/javascript; charset=utf-8']],
+  ...['lesson-data.js','workspace-core.js','vendor/prism.js','ui.js','art.js','launch.js','workspace.js'].map(name=>['/'+name,[name,'text/javascript; charset=utf-8']]),
+  ['/art/topic-icons.png', ['art/topic-icons.png', 'image/png']],
+  ['/vendor/PRISM-LICENSE.txt', ['vendor/PRISM-LICENSE.txt', 'text/plain; charset=utf-8']]
 ]);
 const port = Number(process.env.PORT || 4173);
 createServer(async (req, res) => {

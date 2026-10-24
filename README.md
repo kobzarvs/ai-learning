@@ -4,6 +4,14 @@
 
 Архитектура, задача, способ обучения и оптимизация — разные оси. Например: **картинки → CNN → self-supervised pretraining → fine-tuning → INT8 → локальное приложение**. Поэтому ветки карты пересекаются.
 
+## Интерактивный атлас и практика
+
+[Открыть AI Atlas](https://ai-atlas-plum.vercel.app/).
+Клик по теме открывает её собственный холст: материалы, код, эксперименты,
+свои заметки и именованные группы. Раскладку можно менять и сохранять в JSON.
+113 PyTorch-примеров, 25 полноценных вариантов Rust/Burn и 27 вариантов MLX: [инструкции](examples/README.md).
+Источники уроков находятся в `lessons/`; целевые версии — PyTorch 2.14.1 и Burn 0.22.1.
+
 ## Как читать карту
 
 - **Практика** — метод имеет рабочие применения; это не гарантия выигрыша в любой задаче.
@@ -393,7 +401,7 @@ ResNet использует остаточные связи, U-Net — мног�
 
 - **Для чего:** Длинные сигналы, последовательности, языковые и гибридные модели.
 - **Учесть:** Для маленьких опытов годятся; быстрые реализации Mamba часто завязаны на CUDA. Не обещаем такой же выигрыш на Mac.
-- **Первичные источники:** [Mamba / Mamba-2](https://github.com/state-spaces/mamba)
+- **Первичные источники:** [Mamba / Mamba-3](https://github.com/state-spaces/mamba)
 
 **Linear attention, RWKV, гибриды** — Практика и активные исследования
 
@@ -650,7 +658,7 @@ Quantum Neural Network — квантовая нейросеть.
 
 - **Для чего:** Предобучение на собственных изображениях, текстах и сигналах.
 - **Учесть:** Не все методы self-supervised требуют отрицательных пар; нужно предотвращать коллапс представлений.
-- **Первичные источники:** [DINOv2](https://github.com/facebookresearch/dinov2)
+- **Первичные источники:** [DINOv3](https://github.com/facebookresearch/dinov3)
 
 #### Старт и адаптация
 
@@ -1112,7 +1120,7 @@ AE → VAE, затем маленькая diffusion или flow matching; отд
 - [Apple: PyTorch на Mac](https://developer.apple.com/metal/pytorch/)
 - [MLX](https://ml-explore.github.io/mlx/build/html/index.html)
 - [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-- [Mamba / Mamba-2](https://github.com/state-spaces/mamba)
+- [Mamba / Mamba-3](https://github.com/state-spaces/mamba)
 - [Flow Matching](https://github.com/facebookresearch/flow_matching)
 - [V-JEPA 2](https://ai.meta.com/research/vjepa/)
 - [Kolmogorov–Arnold Networks](https://arxiv.org/abs/2404.19756)
@@ -1122,7 +1130,7 @@ AE → VAE, затем маленькая diffusion или flow matching; отд
 - [PySR: символьная регрессия](https://github.com/astroautomata/PySR)
 - [Stable Baselines3: алгоритмы RL](https://stable-baselines3.readthedocs.io/en/master/guide/algos.html)
 - [TabPFN](https://github.com/PriorLabs/TabPFN)
-- [DINOv2](https://github.com/facebookresearch/dinov2)
+- [DINOv3](https://github.com/facebookresearch/dinov3)
 - [ReservoirPy](https://github.com/reservoirpy/reservoirpy)
 - [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/get_started/introduction.html)
 - [LoRA: PEFT](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora)

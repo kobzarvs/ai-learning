@@ -1,0 +1,174 @@
+(function(scope){
+'use strict';
+function create(o){
+ const {index,rich,esc,toast,getView,setView,closeDetail,hideTerm}=o,C=scope.AtlasWorkspaceCore;
+ const $=id=>document.getElementById(id),canvas=$('canvas'),world=$('workspace-world');
+ const art=(id,options)=>scope.AtlasArt?.render(id,options)||'';
+ const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
+ let launchMode='local',launchPlatform='unix',currentLaunch=null;
+ const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
+ const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
+ try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст. Импортируй резервную копию.');}
+ const board=()=>boards[active];
+ function save(){try{localStorage.setItem(storageKey,JSON.stringify({version:1,boards}));$('space-status').textContent='Сохранено в этом браузере';}catch{$('space-status').textContent='Не сохранено — скачай копию';toast('Не удалось сохранить изменения. Скачай копию холстов.');}}
+ function checkpoint(){undo.push({id:active,board:structuredClone(board())});if(undo.length>30)undo.shift();$('space-undo').disabled=false;}
+ function redrawSelection(){world.querySelectorAll('[data-card]').forEach(el=>el.classList.toggle('is-selected',selection.has(el.dataset.card)));world.querySelectorAll('[data-group]').forEach(el=>el.classList.toggle('is-selected',el.dataset.group===selectedGroup));$('space-selection').textContent=selection.size?`Выбрано: ${selection.size}`:selectedGroup?'Выбрана группа':'Перетаскивай за ⠿ · Ctrl / ⌘ + клик — выбрать';}
+ function render(){
+  if(!active)return;
+  const b=board();world.innerHTML=b.groups.map(g=>`<section class="space-group" data-group="${esc(g.id)}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px"><header><button class="group-handle" data-drag-group="${esc(g.id)}" title="Переместить группу">⠿</button><button class="group-name" data-select-group="${esc(g.id)}">${esc(g.title)}</button><button data-group-menu="${esc(g.id)}" title="Изменить группу" aria-label="Изменить группу ${esc(g.title)}">•••</button></header></section>`).join('')+b.cards.map(c=>{
+   const type={article:'Статья',topic:'Подпространство',example:'Python + PyTorch',rust:'Rust + Burn',exercise:'Практика',note:'Моя заметка'}[c.type];
+   return `<article class="space-card type-${c.type}" data-card="${esc(c.id)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"><header><span>${type}</span><button data-drag-card="${esc(c.id)}" aria-label="Переместить ${esc(c.title)}" title="Перетащи карточку. Стрелки — сдвиг на 20, Alt + стрелки — на 100">⠿</button></header><button class="space-card-body" data-read="${esc(c.id)}"><div class="space-card-heading">${art(c.type==='note'?'projects':c.ref,{decorative:true})}<h2>${c.type==='note'?esc(c.title):rich(c.title)}</h2></div><p>${c.type==='note'?esc(c.body):rich(c.body)}</p><span>${c.type==='topic'?'Войти в пространство':'Открыть'} <b>↗</b></span></button></article>`;
+  }).join('')+'<div id="selection-rect" class="selection-rect" hidden></div>';
+  redrawSelection();
+ }
+ function enter(id,{remember=true,hash=true}={}){
+  if(!index.has(id)||id==='root')return false;hideTerm();closeDetail();closeReader();
+  if(active===id)return true;
+  views.set(active||'root',{...getView()});if(remember)stack.push(active);
+  active=id;if(!boards[id])boards[id]=C.defaultBoard(index.get(id),lessons);
+  selection.clear();selectedGroup=null;lasso=false;drag=null;
+  $('world').hidden=true;world.hidden=false;$('space-toolbar').hidden=false;canvas.classList.add('in-space');canvas.classList.remove('lasso-mode');
+  $('breadcrumb-current').innerHTML=rich(index.get(id).name);$('space-title').innerHTML=rich(index.get(id).name);$('space-lasso').setAttribute('aria-pressed','false');
+  render();setView(views.get(id)||{x:32,y:24,scale:1});
+  if(hash)history.replaceState(null,'','#'+encodeURIComponent(id));save();return true;
+ }
+ function leave({restore=true}={}){if(!active)return;views.set(active,{...getView()});active=null;stack=[];selection.clear();drag=null;world.hidden=true;$('space-toolbar').hidden=true;canvas.classList.remove('in-space','lasso-mode');$('world').hidden=false;closeReader();if(restore&&views.has('root'))setView(views.get('root'));}
+ function back(){const target=stack.pop();if(target){enter(target,{remember:false});}else{const rootView=views.get('root');leave();o.returnToMap(rootView);}}
+ function fit(){if(!active)return;setView(scope.AtlasCore.fitBox(C.bounds([...board().cards,...board().groups]),canvas.clientWidth,canvas.clientHeight,80,1));}
+ function point(e){const r=canvas.getBoundingClientRect(),v=getView();return{x:(e.clientX-r.left-v.x)/v.scale,y:(e.clientY-r.top-v.y)/v.scale};}
+ function stop(e){e.preventDefault();e.stopPropagation();}
+ function pointerDown(e,panMode){
+  suppressClick=false;if(!active||e.button!==0||panMode==='pan'||e.shiftKey)return false;
+  const c=e.target.closest('[data-card]'),g=e.target.closest('[data-drag-group]');
+  if((e.ctrlKey||e.metaKey)&&c){selection.has(c.dataset.card)?selection.delete(c.dataset.card):selection.add(c.dataset.card);selectedGroup=null;redrawSelection();suppressClick=true;stop(e);return true;}
+  const handle=e.target.closest('[data-drag-card]');
+  if(handle||g){
+   checkpoint();if(handle&&!selection.has(handle.dataset.dragCard))selection=new Set([handle.dataset.dragCard]);
+   if(g){selectedGroup=g.dataset.dragGroup;selection.clear();}
+   drag={pointer:e.pointerId,start:point(e),last:point(e),type:g?'group':'cards',id:g?.dataset.dragGroup,moved:false};redrawSelection();
+  }else if(lasso&&!e.target.closest('button,a')){const p=point(e);selection.clear();selectedGroup=null;drag={pointer:e.pointerId,start:p,last:p,type:'lasso',moved:false};}
+  else return false;
+  stop(e);canvas.setPointerCapture(e.pointerId);return true;
+ }
+ function pointerMove(e){
+  if(!drag||drag.pointer!==e.pointerId)return false;const p=point(e),dx=p.x-drag.last.x,dy=p.y-drag.last.y;
+  drag.moved||=Math.hypot(p.x-drag.start.x,p.y-drag.start.y)>3;drag.last=p;
+  if(drag.type==='lasso'){const r={x:drag.start.x,y:drag.start.y,w:p.x-drag.start.x,h:p.y-drag.start.y};selection=new Set(C.selectRect(board().cards,r));const el=$('selection-rect');el.hidden=false;Object.assign(el.style,{left:Math.min(r.x,r.x+r.w)+'px',top:Math.min(r.y,r.y+r.h)+'px',width:Math.abs(r.w)+'px',height:Math.abs(r.h)+'px'});redrawSelection();}
+  else{if(drag.type==='group')C.moveGroup(board(),drag.id,dx,dy);else for(const c of board().cards)if(selection.has(c.id)){c.x+=dx;c.y+=dy;}render();}
+  stop(e);return true;
+ }
+ function pointerUp(e){
+  if(!drag||drag.pointer!==e.pointerId)return false;suppressClick=drag.moved||drag.type==='lasso';
+  if(drag.type==='cards'&&drag.moved){for(const c of board().cards.filter(c=>selection.has(c.id))){const group=[...board().groups].reverse().find(g=>c.x+c.w/2>=g.x&&c.x+c.w/2<=g.x+g.w&&c.y+c.h/2>=g.y&&c.y+c.h/2<=g.y+g.h);const old=c.groupId;c.groupId=group?.id||null;if(old)C.fitGroup(board(),old);if(group)C.fitGroup(board(),group.id);}}
+  if(drag.type!=='lasso'&&drag.moved)save();drag=null;render();return true;
+ }
+ function download(name,content,type='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ const sectionKinds={
+  'Задача':'target','Что будем делать руками':'target','Что покажет этот код':'target',
+  'Порядок работы':'steps','Как это устроено':'mechanism','Где пригодится':'target',
+  'Представь такую задачу':'example','Что важно понимать':'info','На что смотреть в результате':'result',
+  'Измени одно условие':'experiment','Как оценить результат':'result','Границы этого опыта':'info',
+  'Подготовка и запуск':'terminal','Разбор':'book','Ожидаемый результат':'result',
+  'Попробуй изменить':'experiment','Что пример не доказывает':'info','Первоисточники':'sources','Темы внутри':'topics'
+ };
+ const taskTitles=new Set(['Задача','Что будем делать руками','Что покажет этот код']);
+ const sectionHeading=title=>`<h2>${scope.AtlasUI?.icon(sectionKinds[title])||''}<span>${esc(title)}</span></h2>`;
+ function textSection(title,body){return body?`<section class="reading-section${taskTitles.has(title)?' task-brief':''}">${sectionHeading(title)}<p>${rich(body,true)}</p></section>`:'';}
+
+ function codeBlock(code,id,label='Python',language={cargo:'toml',python:'python',rust:'rust'}[id]||'bash'){
+  const highlighted=scope.AtlasUI?.highlight(code,language)||esc(code);
+  return `<div class="code-block"><header><span>${esc(label)}</span><div><button data-copy-code="${id}">Копировать</button><button data-download-code="${id}">Скачать ↓</button></div></header><pre tabindex="0" class="language-${language}" aria-label="Код: ${esc(label)}"><code class="language-${language}">${highlighted}</code></pre></div>`;
+ }
+ function launchGuide(id,lesson,mode){
+  currentLaunch=scope.AtlasLaunch.plan(id,lesson,meta,{language:mode,mode:launchMode,platform:launchPlatform,device:launchDevices[mode]});
+  const choice=`<div class="launch-choice" role="group" aria-label="Способ запуска">${[['local','На компьютере'],['container','Dev Container']].map(([key,label])=>`<button data-launch-mode="${key}" aria-pressed="${launchMode===key}">${label}</button>`).join('')}</div>`;
+  const devices=`<div class="launch-platform" role="group" aria-label="Устройство вычислений">${scope.AtlasLaunch.deviceChoices[mode].map(([key,label])=>`<button data-launch-device="${key}" aria-pressed="${launchDevices[mode]===key}">${label}</button>`).join('')}</div>`;
+  const platform=launchMode==='local'?`<div class="launch-platform" role="group" aria-label="Операционная система">${[['unix','macOS / Linux'],['windows','Windows PowerShell']].map(([key,label])=>`<button data-launch-platform="${key}" aria-pressed="${launchPlatform===key}">${label}</button>`).join('')}</div>`:'';
+  const steps=currentLaunch.steps.map(step=>`<li><h3>${esc(step.title)}</h3><p>${rich(step.body,true)}</p>${(step.links||[]).map(([label,url])=>`<a class="setup-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`).join('')}${step.action?`<a class="inline-primary container-open" href="${esc(step.action.url)}" target="_blank" rel="noopener noreferrer">${esc(step.action.label)} ↗</a>`:''}${(step.blocks||[]).map(b=>codeBlock(b.code,b.id,b.label,b.language)).join('')}</li>`).join('');
+  return `<section class="reading-section launch-guide">${sectionHeading('Подготовка и запуск')}${choice}${currentLaunch.prerequisite?`<p class="setup-prerequisite">${rich(currentLaunch.prerequisite,true)}</p>`:''}${platform}${devices}${currentLaunch.blocked?`<p class="setup-prerequisite" role="status">${esc(currentLaunch.blocked)}</p>`:''}<ol class="setup-steps">${steps}</ol>${currentLaunch.source?`<details class="container-source"><summary>Посмотреть исходный код этого примера</summary>${codeBlock(currentLaunch.source.code,currentLaunch.source.id,currentLaunch.source.label,currentLaunch.source.language)}</details>`:''}</section>`;
+ }
+
+ function read(card,tab){
+  if(card.type==='topic'){enter(card.ref);return;}
+  readerCard=card;const n=index.get(card.ref)||index.get(active),l=lessons[n.id],mode=tab||({example:'python',rust:'rust',exercise:'exercise',note:'note'}[card.type]||'article');
+  $('reader-title').innerHTML=art(card.type==='note'?'projects':n.id,{decorative:true})+'<span>'+esc(card.type==='note'?card.title:n.name)+'</span>';
+  $('reader-tabs').innerHTML=card.type==='note'?'':[['article','Разобраться'],...(l?[['python','Python'],...(l.rust?[['rust','Rust + Burn']]:[]),...(l.mlx?[['mlx','Python + MLX']]:[]),['exercise','Эксперимент']]:[])].map(([key,label])=>`<button data-reader-tab="${key}" aria-pressed="${key===mode}">${label}</button>`).join('');
+  let html='';
+  if(mode==='note'){html=`<div class="personal-note">${esc(card.body||'Пока пусто. Добавь свои наблюдения.').replace(/\n/g,'<br>')}</div><button class="inline-primary" data-edit-note="${esc(card.id)}">Редактировать заметку</button>`;}
+  else if(mode==='article'){
+   html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',n.tasks)}${textSection('Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
+   if(l)html+=textSection('Что будем делать руками',l.goal)+textSection('На что смотреть в результате',l.expected)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
+   if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
+  }else if(l&&mode==='exercise'){
+   html=textSection('Задача',l.goal)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol>${l.steps.map(s=>`<li>${rich(s,true)}</li>`).join('')}</ol></section>`+textSection('Измени одно условие',l.exercise)+textSection('Как оценить результат',l.expected)+textSection('Границы этого опыта',l.limits)+`<button class="inline-primary" id="exercise-note">Создать заметку с планом опыта</button>`;
+  }else if(l&&(mode==='python'||mode==='rust'||mode==='mlx')){
+   const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
+   html=`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal||l.goal)+launchGuide(n.id,l,mode);
+   html+=textSection('Разбор',example.explanation||l.explanation)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Попробуй изменить',example.exercise||l.exercise)+textSection('Что пример не доказывает',example.limits||l.limits);
+   if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
+   html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
+  }
+  if(card.type!=='note'){
+   const sources=[...(n.sources||[]).map(k=>o.sources[k]).filter(Boolean),...(l?.sources||[])];
+   html+=`<section class="reading-section reading-sources">${sectionHeading('Первоисточники')}${sources.map(([name,url])=>/^https?:\/\//.test(url)?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} ↗</a>`:'').join('')}</section>`;
+  }
+  $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
+ }
+ function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
+ function codeFor(id){return currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
+
+ function editor(mode,id){
+  if(!active)return;edit={mode,id};const item=mode==='group'?board().groups.find(g=>g.id===id):board().cards.find(c=>c.id===id);
+  $('editor-heading').textContent=mode==='group'?(item?'Изменить группу':'Новая группа'):(item?'Редактировать заметку':'Новая заметка');
+  $('editor-title').value=item?.title||'';$('editor-body').value=item?.body||'';$('editor-body-label').hidden=mode==='group';$('editor-group-label').hidden=mode==='group';
+  $('editor-group').innerHTML='<option value="">Без группы</option>'+board().groups.map(g=>`<option value="${esc(g.id)}">${esc(g.title)}</option>`).join('');$('editor-group').value=item?.groupId||selectedGroup||'';
+  $('editor-delete').hidden=!item;$('editor-delete').textContent=mode==='group'?'Убрать рамку группы':'Удалить заметку';$('note-editor').showModal();$('editor-title').focus();
+ }
+ scope.AtlasUI?.bindDismiss($('reader'),{close:closeReader});
+ scope.AtlasUI?.bindDismiss($('topic-picker'));
+ scope.AtlasUI?.bindDismiss($('note-editor'),{editable:true});
+ $('note-editor').addEventListener('cancel',e=>e.preventDefault());
+ $('editor-form').addEventListener('submit',e=>{e.preventDefault();if(!edit)return;checkpoint();const title=$('editor-title').value.trim(),body=$('editor-body').value,groupId=$('editor-group').value||null;
+  if(edit.mode==='group'){const g=board().groups.find(g=>g.id===edit.id);if(g)g.title=title||'Группа';else{const created=C.groupCards(board(),[...selection],title);selectedGroup=created.id;if(!selection.size){const v=getView();created.x=(canvas.clientWidth/2-v.x)/v.scale-200;created.y=(canvas.clientHeight/2-v.y)/v.scale-130;}}}
+  else{const c=board().cards.find(c=>c.id===edit.id);if(c){const old=c.groupId;Object.assign(c,{title:title||'Без названия',body,groupId});if(old)C.fitGroup(board(),old);if(groupId)C.fitGroup(board(),groupId);}else{const v=getView();C.addNote(board(),title,body,{x:(canvas.clientWidth/2-v.x)/v.scale-180,y:(canvas.clientHeight/2-v.y)/v.scale-115},groupId);}}
+  $('note-editor').close();save();render();if(readerCard?.type==='note'){const c=board().cards.find(c=>c.id===readerCard.id);if(c)read(c);}edit=null;
+ });
+ $('editor-delete').onclick=()=>{checkpoint();if(edit.mode==='group')C.removeGroup(board(),edit.id);else{const c=board().cards.find(c=>c.id===edit.id);board().cards=board().cards.filter(c=>c.id!==edit.id);if(c?.groupId)C.fitGroup(board(),c.groupId);closeReader();}$('note-editor').close();edit=null;selection.clear();selectedGroup=null;save();render();toast('Удалено. Можно отменить кнопкой ↶.');};
+ $('editor-cancel').onclick=()=>$('note-editor').close();$('reader-close').onclick=closeReader;$('reader').addEventListener('close',hideTerm);$('reader-content').addEventListener('scroll',hideTerm);$('space-back').onclick=back;
+ $('space-note').onclick=()=>editor('note');$('space-group').onclick=()=>editor('group');
+ $('space-lasso').onclick=()=>{lasso=!lasso;$('space-lasso').setAttribute('aria-pressed',String(lasso));canvas.classList.toggle('lasso-mode',lasso);if(lasso)o.selectTool();};
+ $('space-undo').onclick=()=>{const last=undo.pop();if(!last)return;boards[last.id]=last.board;if(last.id===active){selection.clear();selectedGroup=null;render();}save();$('space-undo').disabled=!undo.length;};
+ $('space-export').onclick=()=>download('ai-atlas-workspaces.json',JSON.stringify({version:1,boards},null,2),'application/json');
+ $('space-import').onclick=()=>$('space-file').click();
+ $('space-file').addEventListener('change',async e=>{
+  const file=e.target.files?.[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Файл больше 20 МБ.');const imported=C.parseImport(await file.text());let count=0;
+   for(const [id,incoming] of Object.entries(imported.boards)){if(!index.has(id)||id==='root')continue;const existing=boards[id];if(!existing){boards[id]=incoming;count++;continue;}
+    const groups=new Map();for(const g of incoming.groups){const old=existing.groups.find(x=>x.id===g.id);if(old&&JSON.stringify(old)===JSON.stringify(g)){groups.set(g.id,g.id);continue;}const copy={...g,id:old?C.uid():g.id};groups.set(g.id,copy.id);existing.groups.push(copy);}
+    for(const c of incoming.cards){const old=existing.cards.find(x=>x.id===c.id);if(old&&JSON.stringify(old)===JSON.stringify(c))continue;existing.cards.push({...c,id:old?C.uid():c.id,groupId:groups.get(c.groupId)||null});count++;}
+   }save();render();toast(count?'Копия добавлена. Текущие заметки сохранены.':'В копии нет новых карточек.');
+  }catch(error){toast('Не удалось импортировать: '+error.message);}finally{e.target.value='';}
+ });
+ $('space-link').onclick=()=>{$('topic-picker-list').innerHTML=[...index.values()].filter(n=>n.parent&&n.id!==active).map(n=>`<button data-add-topic="${n.id}">${rich(n.name)}</button>`).join('');$('topic-picker').showModal();};
+ $('topic-picker-close').onclick=()=>$('topic-picker').close();$('topic-picker-search').addEventListener('input',e=>{const q=e.target.value.toLocaleLowerCase('ru');$('topic-picker-list').querySelectorAll('button').forEach(b=>b.hidden=!b.textContent.toLocaleLowerCase('ru').includes(q));});
+ document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.read){if(suppressClick||o.panBlocks(e.detail===0))return;const c=board()?.cards.find(c=>c.id===b.dataset.read);if(c)read(c);}
+  if(b.dataset.spaceEnter){enter(b.dataset.spaceEnter);}
+  if(b.dataset.selectGroup){selectedGroup=b.dataset.selectGroup;selection.clear();redrawSelection();}
+  if(b.dataset.groupMenu)editor('group',b.dataset.groupMenu);
+  if(b.dataset.editNote)editor('note',b.dataset.editNote);
+  if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
+  if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';const scroll=$('reader-content').scrollTop;read(readerCard,$('reader').dataset.tab);$('reader-content').scrollTop=scroll;}
+  if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;read(readerCard,mode);}}
+  if(b.dataset.launchPlatform&&readerCard){launchPlatform=b.dataset.launchPlatform==='windows'?'windows':'unix';const scroll=$('reader-content').scrollTop;read(readerCard,$('reader').dataset.tab);$('reader-content').scrollTop=scroll;}
+  if(b.id==='exercise-note'){const l=lessons[active];closeReader();editor('note');$('editor-title').value='Опыт: '+index.get(active).name;$('editor-body').value='Мой вопрос\n'+l.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
+  if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>{b.textContent='Скопировано ✓';setTimeout(()=>b.textContent='Копировать',1800);},()=>{b.textContent='Используй «Скачать»';});}else b.textContent='Используй «Скачать»';}
+  if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':id==='rust'?'main.rs':['python','mlx'].includes(id)?filename:id+'.txt',codeFor(id));}
+  if(b.dataset.addTopic){checkpoint();const n=index.get(b.dataset.addTopic),v=getView(),c=C.addNote(board(),n.name,n.what,{x:(canvas.clientWidth/2-v.x)/v.scale-180,y:(canvas.clientHeight/2-v.y)/v.scale-115},selectedGroup);c.type='topic';c.ref=n.id;$('topic-picker').close();save();render();}
+ });
+ canvas.addEventListener('click',e=>{if(active&&suppressClick&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();}},true);
+ document.addEventListener('keydown',e=>{if(!active||e.target.closest('input,textarea,select,dialog')||e.shiftKey)return;const moves={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]},handle=e.target.closest('[data-drag-card],[data-drag-group]');if(handle&&moves[e.key]){e.preventDefault();checkpoint();const [dx,dy]=moves[e.key].map(v=>v*(e.altKey?5:1));if(handle.dataset.dragGroup)C.moveGroup(board(),handle.dataset.dragGroup,dx,dy);else{const c=board().cards.find(c=>c.id===handle.dataset.dragCard);c.x+=dx;c.y+=dy;if(c.groupId)C.fitGroup(board(),c.groupId);}const cardId=handle.dataset.dragCard,groupId=handle.dataset.dragGroup;save();render();[...world.querySelectorAll('[data-drag-card],[data-drag-group]')].find(x=>cardId?x.dataset.dragCard===cardId:x.dataset.dragGroup===groupId)?.focus();}});
+ return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
+}
+scope.AtlasSpaces={create};
+})(window);

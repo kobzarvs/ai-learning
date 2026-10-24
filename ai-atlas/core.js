@@ -4,17 +4,19 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function indexTree(root){const index=new Map();function visit(n,parent,branch){if(index.has(n.id))throw Error('Duplicate '+n.id);index.set(n.id,{...n,parent,branch:branch||n.id});for(const c of n.children||[])visit(c,n.id,parent?branch:c.id);}visit(root,null,null);return index;}
 const countLeaves=n=>n.children?n.children.reduce((a,c)=>a+countLeaves(c),0):1;
 const normalize=s=>String(s||'').toLowerCase().replace(/ё/g,'е');
-function search(index,q){const terms=normalize(q).trim().split(/\s+/).filter(Boolean);if(!terms.length)return[];return [...index.values()].filter(n=>n.parent).map(n=>{const name=normalize(n.name+' '+(n.full||'')+' '+n.id);const all=normalize([name,n.what,n.tasks,n.lab,n.note].join(' '));return{node:n,score:terms.every(t=>all.includes(t))?terms.reduce((v,t)=>v+(name.includes(t)?4:1),0):0};}).filter(r=>r.score).sort((a,b)=>b.score-a.score).map(r=>r.node);}
+function search(index,q){const terms=normalize(q).trim().split(/\s+/).filter(Boolean);if(!terms.length)return[];return [...index.values()].filter(n=>n.parent).map(n=>{const name=normalize(n.name+' '+(n.full||'')+' '+n.id);const all=normalize([name,n.aliases,n.what,n.how,n.example,n.tasks,n.lab,n.note,n.training,n.input,n.output,n.criteria,...(n.steps||[])].join(' '));return{node:n,score:terms.every(t=>all.includes(t))?terms.reduce((v,t)=>v+(name.includes(t)?4:1),0):0};}).filter(r=>r.score).sort((a,b)=>b.score-a.score).map(r=>r.node);}
 function layout(root){
-const groups=[],cards=[],edges=[];const cw=278,ch=288,gap=32;
-function cluster(n,x,y,branch,nested){const cols=Math.min(3,n.children.length), rows=Math.ceil(n.children.length/cols);const group={id:n.id,branch,x,y,w:cols*(cw+gap)+gap,h:rows*(ch+gap)+128,nested};groups.push(group);n.children.forEach((c,i)=>cards.push({id:c.id,parent:n.id,branch,x:x+gap+(i%cols)*(cw+gap),y:y+96+Math.floor(i/cols)*(ch+gap),w:cw,h:ch}));return group;}
+const groups=[],cards=[],edges=[];const cw=440,ch=560,gap=36,header=160;
+const clusterWidth=3*(cw+gap)+gap,columnStep=clusterWidth+64,parentWidth=2*clusterWidth+128;
+function cluster(n,x,y,branch,nested){const cols=Math.min(3,n.children.length), rows=Math.ceil(n.children.length/cols);const group={id:n.id,branch,x,y,w:cols*(cw+gap)+gap,h:rows*(ch+gap)+header+gap,nested};groups.push(group);n.children.forEach((c,i)=>cards.push({id:c.id,parent:n.id,branch,x:x+gap+(i%cols)*(cw+gap),y:y+header+Math.floor(i/cols)*(ch+gap),w:cw,h:ch}));return group;}
 let x=0;
 for(const branch of root.children){if(branch.children.every(n=>!n.children)){const g=cluster(branch,x,0,branch.id,false);x+=g.w+200;continue;}
- const parent={id:branch.id,branch:branch.id,x,y:0,w:2084,h:0,nested:false};groups.push(parent);let rowY=128,maxBottom=0;
- branch.children.forEach((n,i)=>{if(i&&i%2===0)rowY=maxBottom+70;const g=cluster(n,x+32+(i%2)*1026,rowY,branch.id,true);maxBottom=Math.max(maxBottom,g.y+g.h);});parent.h=maxBottom+32;x+=parent.w+200;
+ const parent={id:branch.id,branch:branch.id,x,y:0,w:parentWidth,h:0,nested:false};groups.push(parent);let rowY=160,maxBottom=0;
+ branch.children.forEach((n,i)=>{if(i&&i%2===0)rowY=maxBottom+70;const g=cluster(n,x+32+(i%2)*columnStep,rowY,branch.id,true);maxBottom=Math.max(maxBottom,g.y+g.h);});parent.h=maxBottom+32;x+=parent.w+200;
 }
 const roots=new Map(groups.filter(g=>!g.nested).map(g=>[g.id,g]));
-const positions={tasks:[0,0],models:[2300,0],training:[4600,0],small:[0,roots.get('tasks').h+220],practice:[4600,roots.get('training').h+220]};
+const modelX=Math.max(roots.get('tasks').w,roots.get('small').w)+220,trainingX=modelX+roots.get('models').w+220;
+const positions={tasks:[0,0],models:[modelX,0],training:[trainingX,0],small:[0,roots.get('tasks').h+220],practice:[trainingX,roots.get('training').h+220]};
 for(const branch of root.children){const g=roots.get(branch.id),[nx,ny]=positions[branch.id],dx=nx-g.x,dy=ny-g.y;for(const item of [...groups,...cards])if(item.branch===branch.id){item.x+=dx;item.y+=dy;}}
 return{groups,cards,edges};
 }
@@ -108,5 +110,45 @@ function routeConnection(cards,groups,source,target) {
   return simplifyRoute(points);
 }
 
-const api={routingObstacles,segmentBlocked,roundedRoute,routeConnection,clamp,indexTree,countLeaves,search,layout,fitBox,zoomAt,restoreRoute};if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.AtlasCore=api;
+// The tool belongs to the user; modifiers are only overrides. A pointer gesture
+// owns its mode until all its pointers end, regardless of key-up ordering.
+function createPanController(){
+  let tool='select',mode=null,blockClick=false;
+  const modifiers=new Set(),pointers=new Set();
+  const effective=()=>mode||(modifiers.size?'pan':tool);
+  return {
+    get tool(){return tool;},get effective(){return effective();},
+    get dragging(){return mode==='pan'&&pointers.size>0;},
+    setTool(next){tool=next==='pan'?'pan':'select';},
+    modifier(key,down){if(down)modifiers.add(key);else modifiers.delete(key);},
+    freshPointer(){blockClick=false;},
+    begin({id,button=0,onControl=false,shiftKey=false}){
+      if(button!==0&&button!==1)return false;
+      if(!pointers.size)mode=button===1||shiftKey||effective()==='pan'||!onControl?'pan':'select';
+      pointers.add(id);return mode==='pan';
+    },
+    end(id){if(!pointers.delete(id))return;blockClick=mode==='pan';if(!pointers.size)mode=null;},
+    blocksClick(keyboard=false){return !keyboard&&(blockClick||mode==='pan');},
+    reset(){blockClick=mode==='pan';modifiers.clear();pointers.clear();mode=null;}
+  };
+}
+function createTermRenderer(glossary={}){
+  const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const aliases=new Map();
+  for(const [key,term] of Object.entries(glossary))for(const alias of term.aliases||[key])aliases.set(alias.toLowerCase(),key);
+  const pattern=[...aliases.keys()].sort((a,b)=>b.length-a.length).map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  if(!pattern)return escape;
+  const re=new RegExp('(?<![\\p{L}\\p{N}_])('+pattern+')(?![\\p{L}\\p{N}_])','giu');
+  return (text,focusable=false)=>{
+    let out='',offset=0;
+    for(const match of String(text??'').matchAll(re)){
+      const key=aliases.get(match[0].toLowerCase()),term=glossary[key];
+      out+=escape(String(text).slice(offset,match.index));
+      out+=`<abbr class="term" data-term="${escape(key)}" title="${escape(term.full+' — '+term.description)}"${focusable?' tabindex="0"':''}>${escape(match[0])}</abbr>`;
+      offset=match.index+match[0].length;
+    }
+    return out+escape(String(text??'').slice(offset));
+  };
+}
+const api={createPanController,createTermRenderer,routingObstacles,segmentBlocked,roundedRoute,routeConnection,clamp,indexTree,countLeaves,search,layout,fitBox,zoomAt,restoreRoute};if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.AtlasCore=api;
 })(typeof window!=='undefined'?window:globalThis);
