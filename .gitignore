@@ -7,3 +7,9 @@ dist/
 *.zip
 /ai-atlas.html
 /work/
+/generated_images/
+
+__pycache__/
+*.pyc
+.venv/
+/examples/rust-burn/target/
