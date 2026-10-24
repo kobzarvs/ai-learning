@@ -41,21 +41,37 @@ def fit_classifier(model, x, y, steps=160):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # Сравниваем оценки классов с правильными метками; меньше — лучше.
-        loss = F.cross_entropy(model(x), y)
+        loss = F.cross_entropy(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
+    scores = model(x)
+
     # argmax выбирает номер категории с наибольшей оценкой.
-    return float((model(x).argmax(dim=-1) == y).float().mean())
+    predicted_labels = scores.argmax(dim=-1)
+
+    # Для каждого объекта отмечаем, совпал ли прогноз с правильной меткой.
+    correct = predicted_labels == y
+    correct_numbers = correct.float()
+
+    # Среднее нулей и единиц равно доле правильных ответов.
+    correct_fraction = correct_numbers.mean()
+    return correct_fraction.item()
 
 def points(count=320):
     # Создаём искусственные данные из нормального распределения со средним 0.
@@ -68,6 +84,7 @@ results = []
 for width in [4, 12, 32]:
     # Фиксируем начальное состояние генератора, чтобы повторить случайные данные.
     torch.manual_seed(7)
+
     # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
     # Линейный слой учится преобразованию y = x @ W.T + b.
     model = nn.Sequential(nn.Linear(2, width), nn.SiLU(), nn.Linear(width, 2))

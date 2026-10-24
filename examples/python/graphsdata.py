@@ -37,11 +37,13 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 adjacency = torch.tensor([[1.,1,0,0],[1,1,1,0],[0,1,1,0],[0,0,0,1]])
 features = torch.tensor([[1.,0],[0,1],[1,1],[8,8]])
 weights = adjacency / adjacency.sum(1, keepdim=True)
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 layer = nn.Linear(2, 3, bias=False)
 messages = weights @ features
 answer = layer(messages)
 print('Сведения после обмена:', messages.tolist())
 print('Изолированный объект:', messages[-1].tolist())
+
 # Проверяем совпадение всех значений с учётом небольшой ошибки округления.
 assert torch.allclose(messages[-1], features[-1])

@@ -29,7 +29,7 @@ function setup({spaces=false}={}){
  doc.createElement=tag=>{const el=new Element('',tag.toUpperCase());el.click=()=>downloads.push({name:el.download,blob:blobs.get(el.href)});return el;};
  const context={structuredClone,Blob,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
  win.AtlasCore=C;win.ATLAS_DATA=data;win.innerWidth=1440;win.innerHeight=900;
- if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
+ if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);}
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
  function fire(type,target,props={}){
   const e={type,target,button:0,pointerId:1,clientX:100,clientY:100,detail:1,key:'',code:'',shiftKey:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;},stopImmediatePropagation(){this.stopped=true;this.immediate=true;},...props};
@@ -219,6 +219,29 @@ test('Shift wheel and Shift release while dragging preserve Pan inside topic spa
  assert.equal(s.fire('click',handle).defaultPrevented,true);
  const state=JSON.parse(s.storage.get('ai-atlas-workspaces-v1'));
  assert.equal(state.boards.cnn.cards[0].x,80,'pan must not move a card');
+});
+test('causal charts respond to experiment controls and preserve scroll and settings across reader tabs',()=>{
+ const s=setup({spaces:true});
+ s.fire('click',s.make('causal-topic','BUTTON',s.canvas,{open:'causal'}));
+ s.fire('click',s.make('causal-article','BUTTON',s.canvas,{read:'article:causal'}));
+ const content=s.elements.get('reader-content');
+ assert.match(content.innerHTML,/Наглядный опыт: связь и причина/);
+ const initial=content.innerHTML;
+ content.scrollTop=930;
+ s.fire('click',s.make('direct-effect','BUTTON',null,{causalEffect:'0.3'}));
+ assert.equal(content.scrollTop,930);
+ assert.notEqual(content.innerHTML,initial);
+ assert.match(content.innerHTML,/data-causal-effect="0.3" aria-pressed="true"/);
+ assert.match(content.innerHTML,/Линия наклонена/);
+ s.fire('click',s.make('intervention','BUTTON',null,{causalIntervention:'1'}));
+ assert.equal(content.scrollTop,930);
+ assert.match(content.innerHTML,/data-causal-intervention="1" aria-pressed="true"/);
+ s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
+ assert.match(content.innerHTML,/data-causal-effect="0.3" aria-pressed="true"/);
+ assert.match(content.innerHTML,/data-causal-intervention="1" aria-pressed="true"/);
+ assert.match(content.innerHTML,/correlation_matrix/);
+ s.fire('click',s.make('no-effect','BUTTON',null,{causalEffect:'0'}));
+ assert.match(content.innerHTML,/Линия горизонтальна/);
 });
 test('dragging a card moves only the card and saves its new coordinates',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);s.elements.get('select-tool').onclick();

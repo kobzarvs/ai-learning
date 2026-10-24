@@ -42,31 +42,40 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 # Создаём равномерную сетку между двумя границами, включая обе границы.
 x = torch.linspace(-1, 1, 80)[:, None]
 y = x.sin()
+
 # Создаём тензор — числовой массив — из указанных значений.
 query = torch.tensor([[-3.], [0.], [3.]])
 predictions = []
 for seed in range(5):
     # Фиксируем начальное состояние генератора, чтобы повторить случайные данные.
     torch.manual_seed(seed)
+
     # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
     # Линейный слой учится преобразованию y = x @ W.T + b.
     model = nn.Sequential(nn.Linear(1, 16), nn.Tanh(), nn.Linear(16, 1))
     fit_regression(model, x, y)
+
     # Не записываем эти операции в граф для автоматического вычисления градиентов.
     with torch.no_grad(): predictions.append(model(query))
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 answers = torch.stack(predictions)
 print('Средние ответы:', answers.mean(0).squeeze().tolist())

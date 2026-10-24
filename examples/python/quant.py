@@ -35,11 +35,13 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 weights = torch.randn(128, 64)*0.1
+
 # Ограничиваем значения снизу, чтобы избежать слишком малого знаменателя или log(0).
 scale = weights.abs().amax(dim=1, keepdim=True).clamp_min(1e-8)/127
 packed = (weights/scale).round().clamp(-127, 127).to(torch.int8)
 restored = packed.float()*scale
 x = torch.randn(20, 64)
+
 # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
 print('Ошибка выхода:', F.mse_loss(x@restored.T, x@weights.T).item())
 print('Байт до:', weights.numel()*weights.element_size())

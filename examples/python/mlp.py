@@ -41,25 +41,42 @@ def fit_classifier(model, x, y, steps=160):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # Сравниваем оценки классов с правильными метками; меньше — лучше.
-        loss = F.cross_entropy(model(x), y)
+        loss = F.cross_entropy(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
+    scores = model(x)
+
     # argmax выбирает номер категории с наибольшей оценкой.
-    return float((model(x).argmax(dim=-1) == y).float().mean())
+    predicted_labels = scores.argmax(dim=-1)
+
+    # Для каждого объекта отмечаем, совпал ли прогноз с правильной меткой.
+    correct = predicted_labels == y
+    correct_numbers = correct.float()
+
+    # Среднее нулей и единиц равно доле правильных ответов.
+    correct_fraction = correct_numbers.mean()
+    return correct_fraction.item()
 
 # Генерируем случайные числа, равномерно распределённые от 0 до 1.
 x = torch.rand(500, 2) * 2 - 1
 y = (x.square().sum(1) < 0.45).long()
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(2, 24), nn.SiLU(), nn.Linear(24, 2))

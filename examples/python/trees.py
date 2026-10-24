@@ -48,6 +48,7 @@ for feature in range(2):
             continue
         a = y[:180][left].float().mean() >= 0.5
         b = y[:180][~left].float().mean() >= 0.5
+
         # Для каждого элемента выбираем одно из двух значений по логическому условию.
         predicted = torch.where(left, a, b)
         error = (predicted != y[:180]).float().mean().item()

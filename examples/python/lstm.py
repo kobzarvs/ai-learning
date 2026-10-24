@@ -42,13 +42,18 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
@@ -58,9 +63,11 @@ y = x.mean(dim=1)
 class SequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
+
         # LSTM передаёт скрытое состояние и память от одного шага последовательности к
         # следующему.
         self.memory = nn.LSTM(1, 16, batch_first=True)
+
         # Линейный слой учится преобразованию y = x @ W.T + b.
         self.output = nn.Linear(16, 1)
     def forward(self, values):
@@ -68,6 +75,9 @@ class SequenceModel(nn.Module):
         return self.output(states[:, -1])
 model = SequenceModel()
 fit_regression(model, x[:240], y[:240])
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
-    print('Ошибка на новых последовательностях:', F.mse_loss(model(x[240:]), y[240:]).item())
+    prediction = model(x[240:])
+    test_error = F.mse_loss(prediction, y[240:])
+    print('Ошибка на новых последовательностях:', test_error.item())

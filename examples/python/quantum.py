@@ -36,16 +36,21 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Объявляем обучаемый параметр: оптимизатор сможет изменять его значение.
 # Создаём тензор — числовой массив — из указанных значений.
 angle = nn.Parameter(torch.tensor(0.2))
+
 # Adam подбирает величину шага для каждого параметра по истории градиентов.
 optimizer = torch.optim.Adam([angle], lr=0.05)
+
 # После RY(theta) вероятности двух исходов: cos²(theta/2), sin²(theta/2).
 for _ in range(150):
     probability_one = torch.sin(angle/2).square()
     loss = (probability_one-0.8).square()
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
 print('Угол:', angle.item())

@@ -35,9 +35,11 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Соединяем тензоры вдоль уже существующего измерения dim.
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.cat([torch.randn(120, 2)-1, torch.randn(120, 2)+1])
+
 # Создаём тензор заданной формы и заполняем его нулями.
 # Создаём тензор заданной формы и заполняем его единицами.
 y = torch.cat([torch.zeros(120), torch.ones(120)]).long()
+
 # Создаём случайную перестановку индексов для перемешивания объектов.
 order = torch.randperm(len(x))
 x, y = x[order], y[order]
@@ -47,9 +49,11 @@ for label in range(2):
     means.append(subset.mean(0))
     variances.append(subset.var(0)+1e-4)
     priors.append(len(subset)/180)
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 mu, var = torch.stack(means), torch.stack(variances)
 log_score = -0.5*((x[180:, None]-mu).square()/var+var.log()).sum(2)
+
 # Создаём тензор — числовой массив — из указанных значений.
 log_score += torch.tensor(priors).log()
 print('Верно:', log_score.argmax(1).eq(y[180:]).float().mean().item())

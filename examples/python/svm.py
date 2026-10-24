@@ -41,21 +41,28 @@ def points(count=320):
 
 x, labels = points(240)
 y = labels.float()*2-1
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(2, 1)
+
 # AdamW обновляет параметры по градиентам.
 # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.03)
 for _ in range(250):
     score = model(x[:180]).squeeze(1)
+
     # Ограничиваем значения снизу, чтобы избежать слишком малого знаменателя или log(0).
     loss = (1-y[:180]*score).clamp_min(0).mean()+0.01*model.weight.square().sum()
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     prediction = (model(x[180:]).squeeze(1)>0).long()

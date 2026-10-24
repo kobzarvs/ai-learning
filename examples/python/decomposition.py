@@ -35,10 +35,12 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём равномерную сетку между двумя границами, включая обе границы.
 t = torch.linspace(-2, 2, 120)
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.stack([t, 2*t, -t], dim=1)+0.05*torch.randn(120, 3)
 mean = x[:90].mean(0)
+
 # Сингулярное разложение (SVD) выделяет направления матрицы и их значимость.
 # Крупнейшие сингулярные числа позволяют построить компактное приближение.
 u, s, vh = torch.linalg.svd(x[:90]-mean, full_matrices=False)
@@ -46,5 +48,6 @@ direction = vh[:1]
 compressed = (x[90:]-mean) @ direction.T
 restored = compressed @ direction + mean
 print('Размер до и после:', tuple(x[90:].shape), tuple(compressed.shape))
+
 # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
 print('Ошибка восстановления:', F.mse_loss(restored, x[90:]).item())

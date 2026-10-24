@@ -8,6 +8,7 @@ fn device() -> Device {
 use burn::{module::Module, nn::{conv::Conv2dConfig, PaddingConfig2d}};
 fn main() {
     let device = device();
+
     // Задаём свёртку: число входных и выходных каналов и размер фильтра.
     let regular = Conv2dConfig::new([16,32],[3,3]).with_padding(PaddingConfig2d::Same).with_bias(false).init(&device);
     let depthwise = Conv2dConfig::new([16,16],[3,3]).with_groups(16).with_padding(PaddingConfig2d::Same).with_bias(false).init(&device);

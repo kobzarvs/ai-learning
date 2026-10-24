@@ -35,6 +35,7 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 weights = torch.randn(64, 4)@torch.randn(4, 32)+0.01*torch.randn(64, 32)
+
 # Сингулярное разложение (SVD) выделяет направления матрицы и их значимость.
 # Крупнейшие сингулярные числа позволяют построить компактное приближение.
 u, s, vh = torch.linalg.svd(weights, full_matrices=False)
@@ -42,6 +43,7 @@ rank = 4
 left = u[:, :rank]*s[:rank]
 right = vh[:rank]
 x = torch.randn(20, 32)
+
 # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
 print('Ошибка:', F.mse_loss((x@right.T)@left.T, x@weights.T).item())
 print('Параметров до и после:', weights.numel(), left.numel()+right.numel())

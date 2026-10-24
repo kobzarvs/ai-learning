@@ -23,19 +23,25 @@ fn main() {
     let device = device().autodiff();
     let x = Tensor::<2>::random([500, 2], Distribution::Uniform(-1.0, 1.0), &device);
     let y = x.clone().powf_scalar(2.0).sum_dim(1).lower_elem(0.45).int().squeeze::<1>();
+
     // Задаём размеры линейного слоя; init создаёт его обучаемые веса.
     let mut model = Model { hidden: LinearConfig::new(2, 24).init(&device),
         output: LinearConfig::new(24, 2).init(&device) };
+
     // Ошибка классификации сравнивает оценки классов с верными метками.
     let loss_fn = CrossEntropyLossConfig::new().init(&device);
+
     // Adam подбирает шаг обновления для каждого параметра по истории градиентов.
     let mut optimizer = AdamConfig::new().init();
+
     // Берём часть тензора по указанным диапазонам индексов.
     let before = accuracy(&model, x.clone().slice([400..500]), y.clone().slice([400..500]));
     for _ in 0..160 {
         let loss = loss_fn.forward(model.forward(x.clone().slice([0..400])), y.clone().slice([0..400]));
+
         // Связываем градиенты вычислительного графа с параметрами этой модели.
         let grads = GradientsParams::from_grads(loss.backward(), &model);
+
         // Обновляем параметры модели; первый аргумент задаёт скорость обучения.
         model = optimizer.step(0.02, model, grads);
     }

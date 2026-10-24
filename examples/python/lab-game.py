@@ -37,9 +37,11 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(5, 16), nn.SiLU(), nn.Linear(16, 2))
+
 # AdamW обновляет параметры по градиентам.
 # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.02)
+
 # Собираем все переходы маленькой среды. Действие 0 — влево, 1 — вправо.
 states, actions, next_states, rewards, done = [], [], [], [], []
 for state in range(4):
@@ -50,6 +52,7 @@ for state in range(4):
         next_states.append(nxt)
         rewards.append(1.0 if nxt==4 else -0.02)
         done.append(nxt==4)
+
 # Превращаем номер категории в вектор: единица на её месте, остальные — нули.
 # Создаём тензор — числовой массив — из указанных значений.
 s = F.one_hot(torch.tensor(states), 5).float()
@@ -62,12 +65,16 @@ for _ in range(300):
     with torch.no_grad():
         target = reward+0.95*model(ns).max(1).values*(~terminal)
     value = model(s).gather(1, a[:, None]).squeeze(1)
+
     # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
     loss = F.mse_loss(value, target)
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
 with torch.no_grad():

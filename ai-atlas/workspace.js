@@ -7,6 +7,8 @@ function create(o){
  const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
  let launchMode='local',currentLaunch=null;
  const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
+ const causalExperiment={effect:0,intervention:3};
+ const lessonVisual=id=>scope.AtlasLessonVisuals?.render(id,causalExperiment)||'';
  const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
  try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст. Импортируй резервную копию.');}
  const board=()=>boards[active];
@@ -98,14 +100,14 @@ function create(o){
    const normalize=text=>String(text||'').replace(/\s+/g,' ').trim();
    const sharedExample=normalize(n.tasks)===normalize(n.example);
    html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',sharedExample?'':n.tasks)}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
-   if(l)html+=textSection('Что будем делать руками',l.goal)+textSection('На что смотреть в результате',l.expected)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
+   if(l)html+=textSection('Что будем делать руками',l.goal)+lessonVisual(n.id)+textSection('На что смотреть в результате',l.expected)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
    if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
   }else if(l&&mode==='exercise'){
-   html=textSection('Задача',l.goal)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol>${l.steps.map(s=>`<li>${rich(s,true)}</li>`).join('')}</ol></section>`+textSection('Измени одно условие',l.exercise)+textSection('Как оценить результат',l.expected)+textSection('Границы этого опыта',l.limits)+`<button class="inline-primary" id="exercise-note">Создать заметку с планом опыта</button>`;
+   html=textSection('Задача',l.goal)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol>${l.steps.map(s=>`<li>${rich(s,true)}</li>`).join('')}</ol></section>`+textSection('Измени одно условие',l.exercise)+lessonVisual(n.id)+textSection('Как оценить результат',l.expected)+textSection('Границы этого опыта',l.limits)+`<button class="inline-primary" id="exercise-note">Создать заметку с планом опыта</button>`;
   }else if(l&&(mode==='python'||mode==='rust'||mode==='mlx')){
    const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
    html=`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal||l.goal)+launchGuide(n.id,l,mode);
-   html+=textSection('Разбор',example.explanation||l.explanation)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Попробуй изменить',example.exercise||l.exercise)+textSection('Что пример не доказывает',example.limits||l.limits);
+   html+=textSection('Разбор',example.explanation||l.explanation)+lessonVisual(n.id)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Попробуй изменить',example.exercise||l.exercise)+textSection('Что пример не доказывает',example.limits||l.limits);
    if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
    html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
   }
@@ -163,6 +165,10 @@ function create(o){
   if(b.dataset.groupMenu)editor('group',b.dataset.groupMenu);
   if(b.dataset.editNote)editor('note',b.dataset.editNote);
   if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
+  if(readerCard?.ref==='causal'){
+   if(b.dataset.causalEffect!==undefined&&[0,0.3,0.6].includes(Number(b.dataset.causalEffect))){causalExperiment.effect=Number(b.dataset.causalEffect);refreshLaunch();}
+   if(b.dataset.causalIntervention!==undefined&&[-3,1,3].includes(Number(b.dataset.causalIntervention))){causalExperiment.intervention=Number(b.dataset.causalIntervention);refreshLaunch();}
+  }
   if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';refreshLaunch();}
   if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;refreshLaunch();}}
   if(b.id==='exercise-note'){const l=lessons[active];closeReader();editor('note');$('editor-title').value='Опыт: '+index.get(active).name;$('editor-body').value='Мой вопрос\n'+l.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}

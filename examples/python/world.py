@@ -42,32 +42,46 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 state = torch.randn(400, 1)
+
 # Генерируем случайные числа, равномерно распределённые от 0 до 1.
 action = torch.rand(400, 1)*2-1
 next_state = state+0.3*action
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(2, 1)
+
 # Соединяем тензоры вдоль уже существующего измерения dim.
 fit_regression(model, torch.cat([state[:320], action[:320]], 1), next_state[:320])
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     # Создаём равномерную сетку между двумя границами, включая обе границы.
     candidates = torch.linspace(-1, 1, 21)[:, None]
+
     # Создаём тензор той же формы и заполняем его одной заданной величиной.
     current = torch.full_like(candidates, 0.8)
     forecast = model(torch.cat([current, candidates], 1))
     chosen = candidates[forecast.square().argmin()]
-    error = F.mse_loss(model(torch.cat([state[320:], action[320:]], 1)), next_state[320:])
+
+    # Соединяем текущее состояние и действие в одну строку входа.
+    model_input = torch.cat([state[320:], action[320:]], dim=1)
+    prediction = model(model_input)
+    error = F.mse_loss(prediction, next_state[320:])
 print('Ошибка модели мира:', error.item(), 'действие к нулю:', chosen.item())

@@ -9,6 +9,7 @@ use burn::tensor::{TensorData, Bool, activation::softmax};
 fn attention(q: Tensor<4>, k: Tensor<4>, v: Tensor<4>, causal: bool) -> Tensor<4> {
     let [batch, heads, length, width]=q.dims();
     let key_length=k.dims()[2];
+
     // Матрично умножаем тензоры: внутренние размеры должны совпадать.
     let mut scores=q.matmul(k.swap_dims(2,3))/(width as f64).sqrt();
     if causal {
@@ -16,6 +17,7 @@ fn attention(q: Tensor<4>, k: Tensor<4>, v: Tensor<4>, causal: bool) -> Tensor<4
         let mask=Tensor::<4,Bool>::from_data(TensorData::new(mask,[1,1,length,key_length]), &scores.device());
         scores=scores.mask_fill(mask.expand([batch,heads,length,key_length]), -1e9);
     }
+
     // Преобразуем оценки в веса, сумма которых по выбранному измерению равна 1.
     softmax(scores,3).matmul(v)
 }
@@ -33,6 +35,7 @@ fn main() {
         outputs.push(attention(q.clone().slice([0..1,0..1,t..t+1]),Tensor::cat(keys.clone(),2),Tensor::cat(values.clone(),2),false));
     }
     let cached=Tensor::cat(outputs,2);
+
     // Читаем единственное значение тензора как обычное число Rust.
     let error=(full-cached).abs().max().into_scalar::<f32>();
     println!("Разница полного и пошагового расчёта: {error}"); assert!(error<1e-5);

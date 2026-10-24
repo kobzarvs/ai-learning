@@ -35,6 +35,7 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Соединяем тензоры вдоль уже существующего измерения dim.
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.cat([torch.randn(100, 2)*0.3-1, torch.randn(100, 2)*0.3+1])
+
 # Создаём случайную перестановку индексов для перемешивания объектов.
 centers = x[torch.randperm(len(x))[:2]].clone()
 for _ in range(20):
@@ -44,5 +45,6 @@ for _ in range(20):
         if (labels == k).any():
             centers[k] = x[labels == k].mean(0)
 print('Центры групп:', centers.tolist())
+
 # Считаем, сколько раз встретился каждый целочисленный индекс.
 print('Число точек в группах:', torch.bincount(labels, minlength=2).tolist())

@@ -41,9 +41,11 @@ def vector(text):
     result = torch.zeros(len(vocab))
     for word in text.split():
         if word in vocab: result[vocab[word]] += 1
+
     # Нормируем векторы; по умолчанию их евклидова длина становится равной 1.
     return F.normalize(result, dim=0)
 query = 'какой лимит загрузки файла'
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 scores = torch.stack([vector(d) for d in documents])@vector(query)
 best = int(scores.argmax())

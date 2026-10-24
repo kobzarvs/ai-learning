@@ -20,8 +20,10 @@ print("MLX | устройство:", requested, "| dtype: float32")
 
 adjacency = mx.array([[1.,1,0,0],[1,1,1,0],[0,1,1,0],[0,0,0,1]])
 features = mx.array([[1.,0],[0,1],[1,1],[8,8]])
+
 # Суммируем значения вдоль выбранной оси или по всему массиву.
 messages = (adjacency/mx.sum(adjacency, axis=1, keepdims=True))@features
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 answer = nn.Linear(2, 3, bias=False)(messages)
 print("Сведения после обмена:", messages.tolist(), "форма ответа:", answer.shape)

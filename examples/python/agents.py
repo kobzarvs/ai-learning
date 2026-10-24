@@ -35,6 +35,7 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 def lookup_limit():
     return {'value': 20, 'unit': 'MB', 'source': 'настройки проекта'}
 tools = {'lookup_limit': lookup_limit}
+
 # План в этом опыте задан явно, чтобы видеть границу действий.
 plan = [{'tool': 'lookup_limit'}]
 observations = []

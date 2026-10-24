@@ -34,10 +34,12 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(300, 3)
+
 # Более поздние данные пришли из других условий.
 x[240:] += 1.5
 train, validation, test = x[:180], x[180:240], x[240:]
 mean = train.mean(0)
+
 # Ограничиваем значения снизу, чтобы избежать слишком малого знаменателя или log(0).
 std = train.std(0).clamp_min(1e-6)
 train_scaled = (train-mean)/std

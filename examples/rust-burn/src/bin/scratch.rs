@@ -22,21 +22,27 @@ fn main() {
     // Включаем запись вычислений, чтобы затем получить градиенты ошибки.
     let device = device().autodiff();
     let x = Tensor::<2>::random([320, 2], Distribution::Normal(0.0, 1.0), &device);
+
     // Берём часть тензора по указанным диапазонам индексов.
     let y = (x.clone().slice([0..320, 0..1])+x.clone().slice([0..320, 1..2])*0.5)
         .greater_elem(0.0).int().squeeze::<1>();
+
     // Задаём размеры линейного слоя; init создаёт его обучаемые веса.
     let mut model = Model { hidden: LinearConfig::new(2, 12).init(&device),
         output: LinearConfig::new(12, 2).init(&device) };
+
     // Ошибка классификации сравнивает оценки классов с верными метками.
     let loss_fn = CrossEntropyLossConfig::new().init(&device);
+
     // Adam подбирает шаг обновления для каждого параметра по истории градиентов.
     let mut optimizer = AdamConfig::new().init();
     let before = accuracy(&model, x.clone().slice([240..320]), y.clone().slice([240..320]));
     for _ in 0..160 {
         let loss = loss_fn.forward(model.forward(x.clone().slice([0..240])), y.clone().slice([0..240]));
+
         // Связываем градиенты вычислительного графа с параметрами этой модели.
         let grads = GradientsParams::from_grads(loss.backward(), &model);
+
         // Обновляем параметры модели; первый аргумент задаёт скорость обучения.
         model = optimizer.step(0.02, model, grads);
     }

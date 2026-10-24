@@ -21,6 +21,7 @@ print("MLX | устройство:", requested, "| dtype: float32")
 # Возводим каждый элемент в квадрат; так получают квадраты ошибок.
 def f(x): return mx.square(x)+2*x
 x = mx.array(3.)
+
 # Создаём функцию, вычисляющую производную исходной функции по её аргументу.
 derivative = mx.grad(f)(x).item()
 numerical = ((f(x+0.001)-f(x))/0.001).item()

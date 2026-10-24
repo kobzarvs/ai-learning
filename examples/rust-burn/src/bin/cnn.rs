@@ -13,6 +13,7 @@ struct Model { conv: Conv2d, output: Linear }
 impl Model {
     fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let n = x.dims()[0];
+
         // Меняем форму тензора, сохраняя число и порядок элементов.
         let features = silu(self.conv.forward(x)).mean_dim(2).mean_dim(3).reshape([n, 8]);
         self.output.forward(features)
@@ -21,6 +22,7 @@ impl Model {
 fn main() {
     // Включаем запись вычислений, чтобы затем получить градиенты ошибки.
     let device = device().autodiff();
+
     // 240 картинок, два направления полос, пять возможных сдвигов.
     let labels: Vec<i32> = (0..240).map(|i| i % 2).collect();
     let mut pixels = vec![0.0_f32; 240*64];
@@ -37,22 +39,29 @@ fn main() {
     let mut model = Model {
         // Задаём свёртку: число входных и выходных каналов и размер фильтра.
         conv: Conv2dConfig::new([1, 8], [3, 3]).with_padding(PaddingConfig2d::Same).init(&device),
+
         // Задаём размеры линейного слоя; init создаёт его обучаемые веса.
         output: LinearConfig::new(8, 2).init(&device) };
+
     // Ошибка классификации сравнивает оценки классов с верными метками.
     let loss_fn = CrossEntropyLossConfig::new().init(&device);
+
     // Adam подбирает шаг обновления для каждого параметра по истории градиентов.
     let mut optimizer = AdamConfig::new().init();
     for _ in 0..160 {
         // Берём часть тензора по указанным диапазонам индексов.
         let loss = loss_fn.forward(model.forward(x.clone().slice([0..180])), y.clone().slice([0..180]));
+
         // Связываем градиенты вычислительного графа с параметрами этой модели.
         let grads = GradientsParams::from_grads(loss.backward(), &model);
+
         // Обновляем параметры модели; первый аргумент задаёт скорость обучения.
         model = optimizer.step(0.02, model, grads);
     }
+
     // Выбираем индекс наибольшей оценки — предсказанную категорию.
     let accuracy = model.forward(x.slice([180..240])).argmax(1).squeeze::<1>()
+
         // Читаем единственное значение тензора как обычное число Rust.
         .equal(y.slice([180..240])).float().mean().into_scalar::<f32>();
     println!("Верно на 60 новых картинках: {accuracy}; обучаемых чисел: {}", model.num_params());

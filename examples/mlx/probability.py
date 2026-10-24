@@ -19,12 +19,15 @@ mx.random.seed(7)
 print("MLX | устройство:", requested, "| dtype: float32")
 
 observations = mx.array([1,1,0,1,1,0,1,1])
+
 # Суммируем значения вдоль выбранной оси или по всему массиву.
 a = 1+int(mx.sum(observations).item())
 b = 1+len(observations)-(a-1)
+
 # Генерируем значения равномерно внутри указанного интервала.
 ga = -mx.sum(mx.log(mx.random.uniform(1e-7, 1, (10000, a))), axis=1)
 gb = -mx.sum(mx.log(mx.random.uniform(1e-7, 1, (10000, b))), axis=1)
+
 # Упорядочиваем значения по возрастанию.
 samples = mx.sort(ga/(ga+gb))
 low, high = samples[249].item(), samples[9749].item()

@@ -14,10 +14,13 @@ fn main() {
         let mut losses = Vec::new();
         for _ in 0..20 {
             let loss = (parameter.clone()-2.0).powf_scalar(2.0).mean();
+
             // Читаем единственное значение тензора как обычное число Rust.
             losses.push(loss.clone().into_scalar::<f32>());
+
             // Обратный проход вычисляет градиенты ошибки.
             let grads = loss.backward();
+
             // Отделяем тензор от графа градиентов, сохраняя его значения.
             parameter = (parameter.clone()-parameter.grad(&grads).unwrap()*rate).detach().require_grad();
         }

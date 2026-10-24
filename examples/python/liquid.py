@@ -37,15 +37,18 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 class ContinuousCell(nn.Module):
     def __init__(self):
         super().__init__()
+
         # Линейный слой учится преобразованию y = x @ W.T + b.
         self.target = nn.Linear(2, 4)
         self.speed = nn.Linear(2, 4)
     def forward(self, state, x, dt):
         target = self.target(x).tanh()
+
         # Softplus плавно преобразует число в положительное значение.
         decay = torch.exp(-F.softplus(self.speed(x))*dt)
         return decay*state + (1-decay)*target
 cell = ContinuousCell()
+
 # Создаём тензор заданной формы и заполняем его единицами.
 # Создаём тензор заданной формы и заполняем его нулями.
 x, state = torch.ones(1, 2), torch.zeros(1, 4)

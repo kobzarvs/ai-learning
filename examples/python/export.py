@@ -36,16 +36,21 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(4, 8), nn.SiLU(), nn.Linear(8, 2)).eval()
+
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(3, 4)
+
 # Записываем вычислительный граф модели для последующего выполнения.
 program = torch.export.export(model, (x,))
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     original = model(x)
     exported = program.module()(x)
+
 # Проверяем совпадение всех значений с учётом небольшой ошибки округления.
 print('Совпадение:', torch.allclose(original, exported))
 print('Узлов графа:', len(list(program.graph.nodes)))
 assert torch.allclose(original, exported)
+
 # Для файла можно вызвать torch.export.save(program, 'model.pt2').

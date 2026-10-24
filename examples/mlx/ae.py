@@ -21,18 +21,30 @@ print("MLX | устройство:", requested, "| dtype: float32")
 def fit(model, x, y, steps=160, classification=False, rate=0.02):
     def loss_fn(model, x, y):
         prediction = model(x)
-        # Измеряем ошибку классификации по исходным оценкам классов и верным меткам.
+        if classification:
+            # Измеряем ошибку классификации по исходным оценкам классов и верным меткам.
+            return nn.losses.cross_entropy(prediction, y, reduction="mean")
+
+        # Для численного прогноза сначала найдём ошибку каждого ответа.
+        differences = prediction - y
+
+        # Возводим каждый элемент в квадрат; так получают квадраты ошибок.
+        squared_errors = mx.square(differences)
+
         # Усредняем значения вдоль указанной оси или по всему массиву.
-        return (nn.losses.cross_entropy(prediction, y, reduction="mean") if classification
-                else mx.mean(mx.square(prediction-y)))
+        return mx.mean(squared_errors)
+
     # Вычисляем ошибку и градиенты по обучаемым параметрам модели MLX.
     value_and_grad = nn.value_and_grad(model, loss_fn)
+
     # Adam обновляет параметры, учитывая историю их градиентов.
     optimizer = optim.Adam(learning_rate=rate, bias_correction=True)
     for _ in range(steps):
         loss, grads = value_and_grad(model, x, y)
+
         # Применяем вычисленные градиенты к параметрам модели.
         optimizer.update(model, grads)
+
         # MLX откладывает расчёт до запроса результата.
         # Здесь выполняем накопленные вычисления весов, состояния и ошибки.
         mx.eval(model.parameters(), optimizer.state, loss)
@@ -41,6 +53,7 @@ def fit(model, x, y, steps=160, classification=False, rate=0.02):
 # Создаём искусственные данные из нормального распределения со средним 0.
 normal = mx.random.normal((300, 1))@mx.array([[1., 2., -1., 0.5]])
 normal = normal+0.03*mx.random.normal(normal.shape)
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(4, 1), nn.Linear(1, 4))

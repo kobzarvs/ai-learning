@@ -37,26 +37,34 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 velocity = nn.Sequential(nn.Linear(3, 32), nn.SiLU(), nn.Linear(32, 2))
+
 # AdamW обновляет параметры по градиентам.
 # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW(velocity.parameters(), lr=0.01)
 for _ in range(350):
     # Создаём искусственные данные из нормального распределения со средним 0.
     source = torch.randn(128, 2)
+
     # Создаём тензор — числовой массив — из указанных значений.
     target = torch.randn(128, 2)*0.3 + torch.tensor([2.,-1.])
+
     # Генерируем случайные числа, равномерно распределённые от 0 до 1.
     time = torch.rand(128, 1)
     position = (1-time)*source + time*target
+
     # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
     # Соединяем тензоры вдоль уже существующего измерения dim.
     loss = F.mse_loss(velocity(torch.cat([position, time], 1)), target-source)
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     samples = torch.randn(500, 2)

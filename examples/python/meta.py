@@ -43,13 +43,18 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
@@ -58,12 +63,15 @@ initial = nn.Linear(1, 1)
 for _ in range(120):
     # Создаём независимую копию модели, чтобы дальнейшее обучение не меняло оригинал.
     task = copy.deepcopy(initial)
+
     # Создаём искусственные данные из нормального распределения со средним 0.
     x = torch.randn(12, 1)
+
     # Генерируем случайные числа, равномерно распределённые от 0 до 1.
     slope = 1+torch.rand(())
     bias = torch.rand(())*0.4
     fit_regression(task, x, slope*x+bias, steps=10)
+
     # Не записываем эти операции в граф для автоматического вычисления градиентов.
     with torch.no_grad():
         for shared, adapted in zip(initial.parameters(), task.parameters()):

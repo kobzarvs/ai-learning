@@ -42,13 +42,18 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
@@ -58,11 +63,13 @@ y = x.sum(1, keepdim=True)
 def run(seed):
     # Фиксируем начальное состояние генератора, чтобы повторить случайные данные.
     torch.manual_seed(seed)
+
     # Линейный слой учится преобразованию y = x @ W.T + b.
     model = nn.Linear(2, 1)
     fit_regression(model, x, y, steps=20)
     return model(x).detach()
 a, b, c = run(7), run(7), run(8)
+
 # Проверяем точное равенство формы и значений двух тензоров.
 print('Одинаковый seed:', torch.equal(a, b))
 print('Разница при другом seed:', (a-c).abs().max().item())

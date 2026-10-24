@@ -113,7 +113,31 @@ for item in json.load(sys.stdin):
 `],{input:JSON.stringify(variants),encoding:'utf8'});
  assert.equal(parsed.status,0,parsed.stderr);
  const causal=L.findBlock(L.plan('causal',topics.causal,meta,{device:'mps'}),'python').code;
- assert.match(causal,/# Вычисляем корреляции Пирсона[\s\S]*?\ncorrelation = torch.corrcoef/);
+ assert.match(causal,/observed_rows = torch.stack\(\[ice_cream, swimming\]\)/);
+ assert.match(causal,/\n\n# corrcoef[\s\S]*?correlation_matrix = torch.corrcoef\(observed_rows\)/);
+ assert.match(causal,/correlation = correlation_matrix\[0, 1\]/);
  assert.doesNotMatch(causal,/Создадим искусственные наблюдения/);
  assert.doesNotMatch(causal,/import math|import copy|from torch import nn/);
+});
+test('the Python causal model applies interventions to consumption while holding weather and noise fixed',()=>{
+ // Execute the actual arithmetic function with scalar inputs, without requiring
+ // an installed ML framework in the frontend test job.
+ const {spawnSync}=require('node:child_process');
+ const checked=spawnSync('python3',['-c',`import ast,sys,math
+tree=ast.parse(sys.stdin.read())
+model=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='swimming_model')
+module=ast.Module(body=[model],type_ignores=[])
+namespace={}
+exec(compile(module,'causal-model','exec'),namespace)
+for weather in [-2.0,0.0,2.0]:
+ for coefficient in [0.0,0.3,0.6]:
+  namespace.update(weather=weather,swimming_noise=0.17,direct_effect=coefficient)
+  before=namespace['swimming_model'](1.0)
+  after=namespace['swimming_model'](3.0)
+  assert math.isclose(after-before,coefficient*2,abs_tol=1e-12)
+for node in ast.walk(tree):
+ if isinstance(node,ast.Call) and ast.unparse(node.func)=='torch.corrcoef':
+  assert len(node.args)==1 and isinstance(node.args[0],ast.Name)
+`],{input:topics.causal.display.body,encoding:'utf8'});
+ assert.equal(checked.status,0,checked.stderr);
 });

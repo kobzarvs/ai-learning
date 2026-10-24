@@ -10,23 +10,29 @@ fn main() {
     // Включаем запись вычислений, чтобы затем получить градиенты ошибки.
     let device = device().autodiff();
     let x = Tensor::<2>::random([300, 2], Distribution::Normal(0.0, 1.0), &device);
+
     // Берём часть тензора по указанным диапазонам индексов.
     let y = x.clone().slice([0..300, 0..1])*3.0
         - x.clone().slice([0..300, 1..2])*2.0 + 0.7
         + Tensor::<2>::random([300, 1], Distribution::Normal(0.0, 0.1), &device);
+
     // Задаём размеры линейного слоя; init создаёт его обучаемые веса.
     let mut model = LinearConfig::new(2, 1).init(&device);
+
     // Adam подбирает шаг обновления для каждого параметра по истории градиентов.
     let mut optimizer = AdamConfig::new().init();
     for _ in 0..300 {
         let loss = (model.forward(x.clone().slice([0..240]))-y.clone().slice([0..240]))
             .powf_scalar(2.0).mean();
+
         // Связываем градиенты вычислительного графа с параметрами этой модели.
         let grads = GradientsParams::from_grads(loss.backward(), &model);
+
         // Обновляем параметры модели; первый аргумент задаёт скорость обучения.
         model = optimizer.step(0.02, model, grads);
     }
     let error = (model.forward(x.slice([240..300]))-y.slice([240..300]))
+
         // Читаем единственное значение тензора как обычное число Rust.
         .powf_scalar(2.0).mean().into_scalar::<f32>();
     println!("Ошибка на 60 новых строках: {error}");

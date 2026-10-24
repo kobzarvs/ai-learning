@@ -42,29 +42,48 @@ def fit_classifier(model, x, y, steps=160):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # Сравниваем оценки классов с правильными метками; меньше — лучше.
-        loss = F.cross_entropy(model(x), y)
+        loss = F.cross_entropy(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
+    scores = model(x)
+
     # argmax выбирает номер категории с наибольшей оценкой.
-    return float((model(x).argmax(dim=-1) == y).float().mean())
+    predicted_labels = scores.argmax(dim=-1)
+
+    # Для каждого объекта отмечаем, совпал ли прогноз с правильной меткой.
+    correct = predicted_labels == y
+    correct_numbers = correct.float()
+
+    # Среднее нулей и единиц равно доле правильных ответов.
+    correct_fraction = correct_numbers.mean()
+    return correct_fraction.item()
 
 # Создаём равномерную сетку между двумя границами, включая обе границы.
 t = torch.linspace(0, 1, 64)
+
 # Генерируем случайные целые числа; верхняя граница диапазона не включается.
 y = torch.randint(0, 2, (300,))
 x = torch.sin(2 * math.pi * (3 + 6*y[:, None]) * t)
+
 # Создаём случайный шум из нормального распределения той же формы, что исходный тензор.
 x = (x + 0.15 * torch.randn_like(x)).unsqueeze(1)
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Свёртка ищет локальные закономерности вдоль последовательности.
 model = nn.Sequential(nn.Conv1d(1, 12, 5, dilation=2), nn.SiLU(),

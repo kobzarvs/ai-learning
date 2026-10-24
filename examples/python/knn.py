@@ -39,8 +39,10 @@ def points(count=320):
     return x, y
 
 x, y = points(240)
+
 # Вычисляем расстояния между каждой парой объектов из двух наборов.
 distance = torch.cdist(x[180:], x[:180])
+
 # Находим k крайних значений и их индексы; largest=False выбирает наименьшие.
 neighbors = distance.topk(3, largest=False).indices
 prediction = y[:180][neighbors].float().mean(1).ge(0.5).long()

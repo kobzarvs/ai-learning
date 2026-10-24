@@ -36,6 +36,7 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 x = torch.zeros(30)
 x[3] = 1
 state = torch.zeros(4)
+
 # Создаём тензор — числовой массив — из указанных значений.
 decay = torch.tensor([0.1, 0.5, 0.8, 0.95])
 readout = torch.tensor([0.25, 0.25, 0.25, 0.25])

@@ -246,6 +246,12 @@ def wrap_comments(code, marker='#', width=88):
     lines = []
     for line in code.splitlines():
         match = re.match(r'^(\s*)' + re.escape(marker) + r' ?(.*)$', line)
+        # A comment introduces a new explained step. Separate it from the
+        # preceding calculation, while keeping comment paragraphs together.
+        if match and lines and lines[-1].strip():
+            previous = lines[-1].strip()
+            if not previous.startswith(marker) and not previous.endswith((':', '{', '(')):
+                lines.append('')
         if match and len(line) > width:
             prefix = match[1] + marker + ' '
             lines.extend(textwrap.wrap(match[2], width=width,
@@ -301,3 +307,7 @@ MLX_RUNTIMES = {
              '# Начальное состояние генератора позволяет повторить случайные данные.\n'
              'mx.random.seed(7)\nprint("MLX | устройство: Metal")\n',
 }
+
+# Keep the setup as readable as the actual experiment.
+TORCH_RUNTIMES = {device: wrap_comments(code) for device, code in TORCH_RUNTIMES.items()}
+MLX_RUNTIMES = {device: wrap_comments(code) for device, code in MLX_RUNTIMES.items()}

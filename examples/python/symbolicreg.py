@@ -36,6 +36,7 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Создаём равномерную сетку между двумя границами, включая обе границы.
 x = torch.linspace(-2, 2, 100)
 y = 2*x.square()+0.5
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 candidates = {
     'a*x+b': lambda t: torch.stack([t, torch.ones_like(t)], 1),
@@ -45,6 +46,7 @@ candidates = {
 for name, features in candidates.items():
     # Подбираем коэффициенты, минимизирующие сумму квадратов невязок A @ x - b.
     weights = torch.linalg.lstsq(features(x[:70]), y[:70]).solution
+
     # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
     error = F.mse_loss(features(x[70:])@weights, y[70:])
     print(name, 'коэффициенты', weights.tolist(), 'ошибка', error.item())

@@ -12,6 +12,7 @@ fn main() {
     let mut outputs=Vec::new();
     for t in 0..30 {
         state=decay.clone()*state+if t==3 {1.0} else {0.0};
+
         // Читаем единственное значение тензора как обычное число Rust.
         outputs.push(state.clone().mean().into_scalar::<f32>());
     }

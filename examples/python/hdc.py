@@ -41,10 +41,13 @@ def points(count=320):
 
 x, y = points(300)
 projection = torch.randn(2, 1024)
+
 # Для каждого элемента выбираем одно из двух значений по логическому условию.
 codes = torch.where(x@projection>=0, 1., -1.)
+
 # Собираем тензоры одинаковой формы в один, добавляя новое измерение.
 prototypes = torch.stack([codes[:240][y[:240]==k].sum(0) for k in range(2)])
+
 # Нормируем векторы; по умолчанию их евклидова длина становится равной 1.
 prototypes = F.normalize(prototypes, dim=1)
 prediction = (F.normalize(codes[240:], dim=1)@prototypes.T).argmax(1)

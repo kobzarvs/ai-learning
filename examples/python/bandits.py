@@ -34,15 +34,18 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём тензор — числовой массив — из указанных значений.
 true_chance = torch.tensor([0.2, 0.5, 0.8])
+
 # Создаём тензор заданной формы и заполняем его единицами.
 success = torch.ones(3)
 failure = torch.ones(3)
+
 # Создаём тензор заданной формы и заполняем его нулями.
 count = torch.zeros(3, dtype=torch.long)
 for _ in range(800):
     # Бета-распределение описывает неопределённость вероятности от 0 до 1.
     guesses = torch.distributions.Beta(success, failure).sample()
     action = int(guesses.argmax())
+
     # Генерируем случайные числа, равномерно распределённые от 0 до 1.
     reward = int(torch.rand(()) < true_chance[action])
     success[action] += reward

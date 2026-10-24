@@ -38,11 +38,13 @@ x = torch.cat([torch.randn(100, 2)*0.3, torch.tensor([[5.,5.]])])
 def depth(values, index, level=0):
     if len(values)<=1 or level>=30:
         return level
+
     # Генерируем случайные целые числа; верхняя граница диапазона не включается.
     feature = int(torch.randint(0, values.shape[1], (1,)))
     low, high = values[:, feature].min(), values[:, feature].max()
     if high == low:
         return level
+
     # Генерируем случайные числа, равномерно распределённые от 0 до 1.
     cut = low + torch.rand(())*(high-low)
     side = values[:, feature] < cut

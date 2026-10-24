@@ -42,25 +42,33 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 # Создаём тензор — числовой массив — из указанных значений.
 normal = torch.randn(300, 1) @ torch.tensor([[1.,2.,-1.,0.5]])
+
 # Создаём случайный шум из нормального распределения той же формы, что исходный тензор.
 normal += 0.03*torch.randn_like(normal)
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(4, 1), nn.Linear(1, 4))
 fit_regression(model, normal[:240], normal[:240], steps=300)
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     ordinary = (model(normal[240:])-normal[240:]).square().mean(1)

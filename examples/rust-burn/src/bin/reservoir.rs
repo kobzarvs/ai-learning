@@ -20,14 +20,17 @@ fn main() {
     let x = Tensor::cat(states, 0);
     let target: Vec<f32> = (1..260).map(|t| (t as f32*0.13).sin()).collect();
     let y = Tensor::<2>::from_data(burn::tensor::TensorData::new(target, [259, 1]), &device);
+
     // Подбираем выходные веса со штрафом за их величину.
     // Сингулярное разложение даёт то же решение, что (XᵀX + λI)⁻¹Xᵀy.
     let (u, s, vt) = svd::<2, 1>(x.clone().slice([20..200]), 100);
     let shrink = s.clone()/(s.powf_scalar(2.0)+0.001);
     let readout = (vt.transpose()*shrink.unsqueeze_dim::<2>(0))
+
         // Берём часть тензора по указанным диапазонам индексов.
         .matmul(u.transpose()).matmul(y.clone().slice([20..200]));
     let error = (x.slice([200..259]).matmul(readout)-y.slice([200..259]))
+
         // Читаем единственное значение тензора как обычное число Rust.
         .powf_scalar(2.0).mean().into_scalar::<f32>();
     println!("Ошибка прогноза на более позднем участке: {error}");

@@ -41,21 +41,37 @@ def fit_classifier(model, x, y, steps=160):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # Сравниваем оценки классов с правильными метками; меньше — лучше.
-        loss = F.cross_entropy(model(x), y)
+        loss = F.cross_entropy(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 @torch.no_grad()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 def accuracy(model, x, y):
+    scores = model(x)
+
     # argmax выбирает номер категории с наибольшей оценкой.
-    return float((model(x).argmax(dim=-1) == y).float().mean())
+    predicted_labels = scores.argmax(dim=-1)
+
+    # Для каждого объекта отмечаем, совпал ли прогноз с правильной меткой.
+    correct = predicted_labels == y
+    correct_numbers = correct.float()
+
+    # Среднее нулей и единиц равно доле правильных ответов.
+    correct_fraction = correct_numbers.mean()
+    return correct_fraction.item()
 
 def points(count=320):
     # Создаём искусственные данные из нормального распределения со средним 0.
@@ -64,17 +80,21 @@ def points(count=320):
     return x, y
 
 x, y = points(320)
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(2, 2)
 fit_classifier(model, x[:20], y[:20])
 with torch.no_grad():
     # Преобразуем оценки в веса с суммой 1 вдоль выбранного измерения.
     probability = model(x[20:240]).softmax(1)
+
     # Ограничиваем значения снизу, чтобы избежать слишком малого знаменателя или log(0).
     entropy = -(probability*probability.clamp_min(1e-8).log()).sum(1)
+
     # Находим k крайних значений и их индексы; largest=False выбирает наименьшие.
     request = entropy.topk(20).indices+20
 print('Номера объектов для разметки:', request.tolist())
+
 # Соединяем тензоры вдоль уже существующего измерения dim.
 fit_classifier(model, torch.cat([x[:20], x[request]]), torch.cat([y[:20], y[request]]))
 print('После дополнительных 20 меток:', accuracy(model, x[240:], y[240:]))

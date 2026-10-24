@@ -35,8 +35,10 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Модель предлагает действия: читать, отправить, удалить.
 logits = torch.tensor([[1., 2., 5.]])
 allowed = torch.tensor([[True, True, False]])
+
 # Заменяем элементы, отмеченные логической маской, указанным значением.
 restricted = logits.masked_fill(~allowed, float('-inf'))
+
 # Преобразуем оценки в веса с суммой 1 вдоль выбранного измерения.
 probabilities = restricted.softmax(1)
 action = probabilities.argmax(1).item()

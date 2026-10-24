@@ -42,26 +42,35 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 # положение и скорость
 x = torch.randn(400, 2)
 expert = (-0.7*x[:, :1]-0.3*x[:, 1:]).clamp(-1, 1)
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Sequential(nn.Linear(2, 16), nn.Tanh(), nn.Linear(16, 1), nn.Tanh())
 fit_regression(model, x[:320], expert[:320])
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
-    print('Ошибка повторения эксперта:', F.mse_loss(model(x[320:]), expert[320:]).item())
+    prediction = model(x[320:])
+    test_error = F.mse_loss(prediction, expert[320:])
+    print('Ошибка повторения эксперта:', test_error.item())
     position, speed = 2., 0.
     for _ in range(60):
         # Создаём тензор — числовой массив — из указанных значений.

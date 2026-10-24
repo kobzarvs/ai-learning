@@ -37,6 +37,7 @@ payoff = torch.tensor([[0.,1.,-1.],[-1.,0.,1.],[1.,-1.,0.]])
 counts = torch.tensor([9., 3., 1.])
 for _ in range(2000):
     opponent = counts/counts.sum()
+
     # Лучший ответ на среднюю стратегию собственных прошлых игр.
     action = int((payoff@opponent).argmax())
     counts[action] += 1

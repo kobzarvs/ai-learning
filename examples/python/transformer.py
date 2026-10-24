@@ -36,17 +36,21 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # 2 последовательности, 6 позиций, 16 признаков.
 x = torch.randn(2, 6, 16)
+
 # Линейный слой учится преобразованию y = x @ W.T + b.
 projection = nn.Linear(16, 48, bias=False)
 q, k, v = projection(x).chunk(3, dim=-1)
+
 # Измерения: набор, голова, позиция, признаки головы.
 q, k, v = [z.view(2, 6, 4, 4).transpose(1, 2) for z in (q, k, v)]
+
 # Внимание взвешивает значения V по сходству запросов Q и ключей K.
 answer = F.scaled_dot_product_attention(q, k, v, is_causal=True)
 changed_v = v.clone()
 changed_v[:, :, -1] += 100
 changed = F.scaled_dot_product_attention(q, k, changed_v, is_causal=True)
 print('Размер ответа:', tuple(answer.shape))
+
 # Проверяем совпадение всех значений с учётом небольшой ошибки округления.
 print('Ранние ответы не меняются:', torch.allclose(answer[:, :, :-1], changed[:, :, :-1]))
 assert torch.allclose(answer[:, :, :-1], changed[:, :, :-1])

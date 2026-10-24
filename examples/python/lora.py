@@ -39,23 +39,31 @@ x = torch.randn(300, 8)
 base = torch.randn(8, 8)*0.2
 true_update = torch.randn(8, 2)@torch.randn(2, 8)*0.1
 y = x@(base+true_update)
+
 # Объявляем обучаемый параметр: оптимизатор сможет изменять его значение.
 a = nn.Parameter(torch.randn(8, 2)*0.01)
+
 # Создаём тензор заданной формы и заполняем его нулями.
 b = nn.Parameter(torch.zeros(2, 8))
+
 # AdamW обновляет параметры по градиентам.
 # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW([a, b], lr=0.04)
 for _ in range(250):
     prediction = x[:240]@base + x[:240]@a@b
+
     # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
     loss = F.mse_loss(prediction, y[:240])
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     print('Ошибка на новых объектах:', F.mse_loss(x[240:]@base+x[240:]@a@b, y[240:]).item())

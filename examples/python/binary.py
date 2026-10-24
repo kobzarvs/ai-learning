@@ -36,9 +36,11 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 # Создаём искусственные данные из нормального распределения со средним 0.
 weights = torch.randn(32, 16)
 scale = weights.abs().mean(1, keepdim=True)
+
 # Для каждого элемента выбираем одно из двух значений по логическому условию.
 binary = torch.where(weights>=0, 1., -1.)*scale
 x = torch.randn(40, 16)
+
 # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
 print('Ошибка выхода:', F.mse_loss(x@binary.T, x@weights.T).item())
 print('Теоретические биты знаков:', weights.numel())

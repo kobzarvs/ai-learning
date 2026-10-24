@@ -39,6 +39,7 @@ true_positive = ((prediction==1)&(y==1)).sum()
 false_positive = ((prediction==1)&(y==0)).sum()
 false_negative = ((prediction==0)&(y==1)).sum()
 accuracy_value = prediction.eq(y).float().mean()
+
 # Ограничиваем значения снизу, чтобы избежать слишком малого знаменателя или log(0).
 precision = true_positive/(true_positive+false_positive).clamp_min(1)
 recall = true_positive/(true_positive+false_negative).clamp_min(1)

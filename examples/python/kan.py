@@ -42,13 +42,18 @@ def fit_regression(model, x, y, steps=200):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
-        loss = F.mse_loss(model(x), y)
+        loss = F.mse_loss(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
@@ -58,9 +63,11 @@ y = (x[:, :1].sin() + x[:, 1:].square())
 class EdgeFunctions(nn.Module):
     def __init__(self):
         super().__init__()
+
         # Сохраняем тензор внутри модели без включения в обучаемые параметры.
         # Создаём равномерную сетку между двумя границами, включая обе границы.
         self.centers = nn.Buffer(torch.linspace(-1, 1, 12))
+
         # Объявляем обучаемый параметр: оптимизатор сможет изменять его значение.
         # Создаём тензор заданной формы и заполняем его нулями.
         self.coefficients = nn.Parameter(torch.zeros(2, 12))
@@ -69,6 +76,9 @@ class EdgeFunctions(nn.Module):
         return (bases*self.coefficients).sum((1, 2)).unsqueeze(1)
 model = EdgeFunctions()
 fit_regression(model, x[:320], y[:320])
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
-    print('Ошибка на новых точках:', F.mse_loss(model(x[320:]), y[320:]).item())
+    prediction = model(x[320:])
+    test_error = F.mse_loss(prediction, y[320:])
+    print('Ошибка на новых точках:', test_error.item())

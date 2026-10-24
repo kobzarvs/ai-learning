@@ -63,8 +63,13 @@ TRAIN = '''
 def fit(model, x, y, steps=160, classification=False, rate=0.02):
     def loss_fn(model, x, y):
         prediction = model(x)
-        return (nn.losses.cross_entropy(prediction, y, reduction="mean") if classification
-                else mx.mean(mx.square(prediction-y)))
+        if classification:
+            return nn.losses.cross_entropy(prediction, y, reduction="mean")
+
+        # Для численного прогноза сначала найдём ошибку каждого ответа.
+        differences = prediction - y
+        squared_errors = mx.square(differences)
+        return mx.mean(squared_errors)
     value_and_grad = nn.value_and_grad(model, loss_fn)
     optimizer = optim.Adam(learning_rate=rate, bias_correction=True)
     for _ in range(steps):

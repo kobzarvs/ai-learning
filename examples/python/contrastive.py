@@ -36,9 +36,11 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(128, 8)
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Линейный слой учится преобразованию y = x @ W.T + b.
 encoder = nn.Sequential(nn.Linear(8, 24), nn.SiLU(), nn.Linear(24, 12))
+
 # AdamW обновляет параметры по градиентам.
 # Параметр weight_decay задаёт дополнительное уменьшение весов; 0 отключает его.
 optimizer = torch.optim.AdamW(encoder.parameters(), lr=0.01)
@@ -49,16 +51,21 @@ for _ in range(100):
     a = F.normalize(encoder(x + 0.1*torch.randn_like(x)), dim=1)
     b = F.normalize(encoder(x + 0.1*torch.randn_like(x)), dim=1)
     scores = a @ b.T / 0.1
+
     # Сравниваем оценки классов с правильными метками; меньше — лучше.
     # Создаём последовательность чисел с постоянным шагом; конечная граница не
     # включается.
     loss = F.cross_entropy(scores, torch.arange(len(x)))
+
     # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
     optimizer.zero_grad(set_to_none=True)
+
     # Вычисляем градиенты ошибки по обучаемым параметрам.
     loss.backward()
+
     # Обновляем обучаемые параметры по рассчитанным градиентам.
     optimizer.step()
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     new = torch.randn(40, 8)

@@ -34,13 +34,16 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # До опыта допускаем все вероятности равномерно: Beta(1, 1).
 a, b = 1., 1.
+
 # Создаём тензор — числовой массив — из указанных значений.
 observations = torch.tensor([1, 1, 0, 1, 1, 0, 1, 1])
 a += observations.sum().item()
 b += (1-observations).sum().item()
+
 # Бета-распределение описывает неопределённость вероятности от 0 до 1.
 posterior = torch.distributions.Beta(a, b)
 samples = posterior.sample((10000,))
+
 # Находим пороги, ниже которых лежат заданные доли значений.
 interval = torch.quantile(samples, torch.tensor([0.025, 0.975]))
 print('Оценка вероятности:', a/(a+b))

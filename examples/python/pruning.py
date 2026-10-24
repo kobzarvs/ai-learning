@@ -36,16 +36,20 @@ print("PyTorch", torch.__version__, "| устройство:", device, "| dtype:
 
 # Линейный слой учится преобразованию y = x @ W.T + b.
 model = nn.Linear(20, 10)
+
 # Создаём искусственные данные из нормального распределения со средним 0.
 x = torch.randn(30, 20)
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     before = model(x)
+
     # Находим пороги, ниже которых лежат заданные доли значений.
     threshold = torch.quantile(model.weight.abs(), 0.5)
     model.weight.mul_(model.weight.abs()>=threshold)
     after = model(x)
 print('Нулевых весов:', int((model.weight==0).sum()))
 print('Плотная память весов в байтах:', model.weight.numel()*model.weight.element_size())
+
 # MSE — среднее значение квадратов разностей прогноза и правильного ответа.
 print('Ошибка после удаления:', F.mse_loss(after, before).item())

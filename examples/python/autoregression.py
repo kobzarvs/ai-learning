@@ -41,26 +41,34 @@ def fit_classifier(model, x, y, steps=160):
     for _ in range(steps):
         # Сбрасываем градиенты предыдущего шага: PyTorch иначе накапливает их.
         optimizer.zero_grad(set_to_none=True)
+        prediction = model(x)
+
         # Сравниваем оценки классов с правильными метками; меньше — лучше.
-        loss = F.cross_entropy(model(x), y)
+        loss = F.cross_entropy(prediction, y)
+
         # Вычисляем градиенты ошибки по обучаемым параметрам.
         loss.backward()
+
         # Обновляем обучаемые параметры по рассчитанным градиентам.
         optimizer.step()
     model.eval()
+
     # Отделяем тензор от графа градиентов: через эту ветку обучение не пойдёт.
     return float(loss.detach())
 
 sequence = 'abcabcabcabcabcabc'
 vocab = {c:i for i,c in enumerate('abc')}
+
 # Создаём тензор — числовой массив — из указанных значений.
 tokens = torch.tensor([vocab[c] for c in sequence])
 x, y = tokens[:-1], tokens[1:]
+
 # Выход каждого слоя передаём следующему; порядок слоёв задаёт вычисление сети.
 # Каждому целочисленному индексу сопоставляем обучаемый вектор.
 model = nn.Sequential(nn.Embedding(3, 8), nn.Linear(8, 3))
 fit_classifier(model, x, y)
 current, generated = torch.tensor([0]), 'a'
+
 # Не записываем эти операции в граф для автоматического вычисления градиентов.
 with torch.no_grad():
     for _ in range(12):
