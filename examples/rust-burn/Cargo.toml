@@ -6,5 +6,10 @@ rust-version = "1.95"
 publish = false
 default-run = "linear"
 
+[features]
+default = []
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+
 [dependencies]
 burn = { version = "=0.22.1", default-features = false, features = ["std", "flex", "optim", "linalg"] }
