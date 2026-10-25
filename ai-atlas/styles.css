@@ -145,8 +145,10 @@
 .guide-case{border:1px solid #d9e1d6;border-radius:8px;padding:16px 18px;background:#fafbf8;margin-top:12px}
 .guide-case>summary{cursor:pointer;list-style:none}
 .guide-case>summary::-webkit-details-marker{display:none}
-.guide-case>summary::after{content:'Развернуть разбор ↓';display:block;margin-top:8px;color:#47633f}
-.guide-case[open]>summary::after{content:'Свернуть разбор ↑'}
+.guide-case-open,.guide-case-close{margin-top:8px;color:#47633f}
+.guide-case-open{display:block}.guide-case-close{display:none}
+.guide-case[open]>summary .guide-case-open{display:none}
+.guide-case[open]>summary .guide-case-close{display:block}
 .guide-case-kind{display:block;color:#6d7969;font-size:20px;line-height:1.4;margin-bottom:6px}
 .guide-case>summary strong{display:block;font-size:22px;line-height:1.4}
 .guide-case-body{margin:20px 0 0}
