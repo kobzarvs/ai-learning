@@ -14,11 +14,10 @@ const situations={
 };
 
 function render(guide){
- const links=ids=>`<div class="guide-sources">${ids.map(id=>guide.sources[id]).filter(Boolean).filter(([,url])=>/^https:\/\//.test(url)).map(([label,url])=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`).join('')}</div>`;
  const count=guide.groups.reduce((sum,group)=>sum+group.methods.length,0);
  const methodNames=new Map(guide.groups.flatMap(group=>group.methods.map(method=>[method.id,method.title])));
  const cleanTitle=title=>title.replace(/^\d+\.\s*/, '');
- const caseBody=item=>`<dl class="guide-case-body"><dt>Вопрос</dt><dd>${esc(item.question)}</dd><dt>Как устроено сравнение</dt><dd>${esc(item.approach)}</dd><dt>Вывод и его границы</dt><dd>${esc(item.lesson)}</dd></dl>${links(item.sources)}`;
+ const caseBody=item=>`<dl class="guide-case-body"><dt>Вопрос</dt><dd>${esc(item.question)}</dd><dt>Как устроено сравнение</dt><dd>${esc(item.approach)}</dd><dt>Вывод и его границы</dt><dd>${esc(item.lesson)}</dd></dl>`;
  const caseCard=(item,related=false)=>`<details class="guide-case"><summary><span class="guide-case-kind">${esc(item.kind)}</span><strong>${esc(item.title)}</strong><span class="guide-case-open" aria-hidden="true">Развернуть разбор ↓</span><span class="guide-case-close" aria-hidden="true">Свернуть разбор ↑</span></summary>${caseBody(item)}${related?`<div class="guide-related" aria-label="Методы из этого разбора">${item.methods.map(id=>`<button data-guide-jump="causal-method-${esc(id)}">${esc(methodNames.get(id))} →</button>`).join('')}</div>`:''}</details>`;
  const groups=guide.groups.map((group,index)=>`<section class="guide-panel" data-guide-panel="${index}" id="causal-guide-${index}" aria-labelledby="guide-heading-${index}"${index?' hidden':''}>
   <header class="guide-panel-heading"><p class="guide-eyebrow">Группа ${index+1} из ${guide.groups.length}</p><h2 id="guide-heading-${index}">${esc(cleanTitle(group.title))}</h2><p>${esc(group.purpose)}</p></header>
@@ -30,7 +29,6 @@ function render(guide){
     <div class="guide-method-body"><section class="guide-example"><h3>Пример задачи</h3><p>${esc(method.example)}</p></section>
      <div class="guide-requirements"><section><h3>Какие данные собрать</h3><p>${esc(method.data)}</p></section><section class="guide-assumptions"><h3>Когда сравнению можно доверять</h3><p>${esc(method.assumptions)}</p></section></div>
      ${cases.length?`<section class="guide-linked-cases"><h3>Разборы с этим методом</h3>${cases.map(item=>caseCard(item)).join('')}</section>`:''}
-     <details class="guide-reference"><summary>Первоисточники по методу · ${method.sources.length}</summary>${links(method.sources)}</details>
     </div></details>`;
   }).join('')}</div></section>`).join('');
  return `<div class="causal-guide" data-guide-current="0">

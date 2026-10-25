@@ -132,12 +132,13 @@ test('topic opens a separate canvas; a lesson opens the full reader and Back res
  assert.equal(s.elements.get('world').hidden,false);
  assert.equal(s.elements.get('world').style.transform,before);
 });
-test('assignment highlights the requested change and keeps only its own steps and sources',()=>{
+test('assignment highlights the requested change and keeps sources in theory',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);
  s.fire('click',s.make('exercise','BUTTON',s.canvas,{read:'exercise:cnn'}));
  const html=s.elements.get('reader-content').innerHTML;
  assert.match(html,/<section class="reading-section task-brief"><h2><span class="section-icon icon-experiment"/);
- for(const kind of ['steps','experiment','sources'])assert.match(html,new RegExp('section-icon icon-'+kind));
+ for(const kind of ['steps','experiment'])assert.match(html,new RegExp('section-icon icon-'+kind));
+ assert.doesNotMatch(html,/reading-sources|Первоисточники/);
  assert.equal((html.match(/<h2>/g)||[]).length,(html.match(/section-icon/g)||[]).length);
 });
 test('every topic article shows shared application/example text once and preserves distinct content',()=>{
@@ -227,10 +228,15 @@ test('causal tabs separate concepts, methods, Python code and interactive charts
  const content=s.elements.get('reader-content'),reader=s.elements.get('reader');
  assert.equal(reader.classes.has('reader-wide'),false);
  assert.match(content.innerHTML,/Сотрудникам дают новую инструкцию/);
+ assert.match(s.elements.get('reader-tabs').innerHTML,/>Теория<\/button>/);
+ assert.match(s.elements.get('workspace-world').innerHTML,/<h2>Теория<\/h2>/);
+ assert.match(content.innerHTML,/reading-sources/);
+ const sourceURLs=[...content.innerHTML.matchAll(/<a href="([^"]+)"/g)].map(match=>match[1]);
+ for(const [,url] of Object.values(s.win.ATLAS_LESSONS.topics.causal.guide.sources))assert.equal(sourceURLs.filter(value=>value===url.replace(/&/g,'&amp;')).length,1);
  assert.doesNotMatch(content.innerHTML,/lesson-visual|causal-scatter-title/);
  s.fire('click',s.make('experiment','BUTTON',null,{readerTab:'exercise'}));
  assert.match(content.innerHTML,/Ускоряет ли новая инструкция работу/);
- assert.doesNotMatch(content.innerHTML,/launch-guide|code-block|Создай окружение/);
+ assert.doesNotMatch(content.innerHTML,/launch-guide|code-block|Создай окружение|reading-sources|Первоисточники/);
  const initial=content.innerHTML;
  content.scrollTop=230;
  let chart={scrollLeft:140},markup=content.innerHTML;
@@ -246,11 +252,11 @@ test('causal tabs separate concepts, methods, Python code and interactive charts
  assert.match(content.innerHTML,/data-causal-assignment="random" aria-pressed="true"/);
  s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
  assert.match(content.innerHTML,/correlation_matrix/);
- assert.doesNotMatch(content.innerHTML,/causal-scatter-title|data-causal-saving/);
+ assert.doesNotMatch(content.innerHTML,/causal-scatter-title|data-causal-saving|reading-sources|Первоисточники/);
  s.fire('click',s.make('methods','BUTTON',null,{readerTab:'methods'}));
  assert.match(content.innerHTML,/Синтетический контроль/);
  assert.match(content.innerHTML,/eBay/);
- assert.doesNotMatch(content.innerHTML,/code-block|causal-scatter-title/);
+ assert.doesNotMatch(content.innerHTML,/code-block|causal-scatter-title|reading-sources|Первоисточники|guide-sources/);
  s.fire('click',s.make('experiment-again','BUTTON',null,{readerTab:'exercise'}));
  assert.match(content.innerHTML,/data-causal-saving="8" aria-pressed="true"/);
  assert.match(content.innerHTML,/data-causal-assignment="random" aria-pressed="true"/);

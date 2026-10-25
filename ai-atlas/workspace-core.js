@@ -6,7 +6,7 @@ const text=(v,fallback='')=>typeof v==='string'?v:fallback;
 function defaultBoard(node,lessons={}){
  const cards=[];
  const add=(id,type,ref,title,body,x,y)=>cards.push({id,type,ref,title,body,x,y,w:420,h:330,groupId:null});
- add('article:'+node.id,'article',node.id,'Разобраться в теме',node.what,80,90);
+ add('article:'+node.id,'article',node.id,'Теория',node.what,80,90);
  if(node.children){node.children.forEach((child,i)=>add('topic:'+child.id,'topic',child.id,child.name,child.what,80+(i%3)*460,470+Math.floor(i/3)*380));}
  else{
   add('python:'+node.id,'example',node.id,'Python · практический пример','Открыть код, команду запуска и разбор результата.',540,90);

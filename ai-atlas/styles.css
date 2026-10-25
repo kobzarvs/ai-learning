@@ -153,10 +153,6 @@
 .causal-guide dd{margin:5px 0 18px;color:#4a6150}
 .guide-related{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 .guide-related button{border:1px solid #cbd9cc;border-radius:8px;padding:9px 12px;background:#f0f5ee;text-align:left;cursor:pointer}
-.guide-reference{margin-top:20px;border-top:1px solid #e0e7dd;padding-top:16px;color:#526950}
-.guide-reference>summary{cursor:pointer}
-.guide-sources{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.guide-sources a{line-height:1.5;overflow-wrap:anywhere}
 .guide-study-route{padding:22px;background:#f0f4eb;border:1px solid #d1deca;border-radius:10px;margin:4px 0 24px}
 .guide-study-route ol{padding-left:26px;margin:0}
 .guide-study-route li+li{margin-top:12px}
