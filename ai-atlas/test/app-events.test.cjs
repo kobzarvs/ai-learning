@@ -255,7 +255,7 @@ test('causal tabs separate concepts, methods, Python code and interactive charts
  assert.match(content.innerHTML,/data-causal-saving="8" aria-pressed="true"/);
  assert.match(content.innerHTML,/data-causal-assignment="random" aria-pressed="true"/);
  s.fire('click',s.make('no-effect','BUTTON',null,{causalSaving:'0'}));
- assert.match(content.innerHTML,/Известный эффект: 0 мин/);
+ assert.match(content.innerHTML,/при неизменной работе: 0 мин/);
 });
 test('a standalone assignment follows the selected framework without duplicating the launch instructions',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);

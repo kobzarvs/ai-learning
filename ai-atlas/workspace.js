@@ -115,7 +115,7 @@ function create(o){
   }else if(l&&mode==='exercise'){
    const exerciseExample=l[exerciseLanguage]||l;
    const exerciseLabel={python:'Python',rust:'Rust + Burn',mlx:'Python + MLX'}[exerciseLanguage];
-   html=(n.id==='causal'?lessonVisual(n.id)+textSection('Проверь себя','Сначала задай экономию 4 минуты и выдачу инструкции на сложных заданиях. Почему сравнение групп показывает замедление? Переключи назначение на случайное. Затем отключи экономию: чему должны стать близки оба результата? Сформулируй вывод до открытия Python.'):
+   html=(n.id==='causal'?lessonVisual(n.id)+textSection('Проверь себя','Отключи экономию и выбери «Чаще на сложных». Сравни распределения сложности: почему у групп разное среднее время, хотя эффект инструкции равен нулю? Затем выбери случайное назначение: почему распределения сближаются, но разница времени не становится ровно нулевой? Включи экономию 4 минуты и проверь свой прогноз.'):
     textSection('Измени одно условие',exerciseExample.exercise)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol><li>Перед запуском запиши, как, по твоему предположению, изменится результат.</li><li>Во вкладке ${exerciseLabel} запусти исходный вариант и сохрани вывод.</li><li>Внеси указанное изменение, повтори запуск и сравни результаты.</li><li>Объясни различие: чем наблюдение подтверждает или опровергает твоё предположение?</li></ol></section>`)+`<button class="inline-primary" id="exercise-note">Записать гипотезу и результат</button>`;
   }else if(l&&(mode==='python'||mode==='rust'||mode==='mlx')){
    const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
