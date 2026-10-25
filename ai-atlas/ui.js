@@ -6,6 +6,8 @@ function highlight(code,language){
  return grammar?prism.highlight(String(code),grammar,language):escape(code);
 }
 const icons={
+ copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+ download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
  target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 9-9m-5 0h5v5"/>',
  steps:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M10 9h6m-6 5h6m-6 4h6M8 9h.01M8 14h.01M8 18h.01"/>',
  mechanism:'<path d="m14 6 4-4a6 6 0 0 1-7 8L4 17a2 2 0 0 0 3 3l7-7a6 6 0 0 0 8-7l-4 4-4-4Z"/>',
@@ -29,6 +31,7 @@ function bindDismiss(dialog,{close=()=>dialog.close(),editable=false}={}){
  const outside=e=>{const r=dialog.getBoundingClientRect();return e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom);};
  dialog.setAttribute('closedby',editable?'none':'closerequest');
  if(editable)return;
+ dialog.addEventListener('cancel',e=>{e.preventDefault();e.stopPropagation?.();close();});
  dialog.addEventListener('pointerdown',e=>{beganOutside=e.button===0&&outside(e);});
  dialog.addEventListener('pointercancel',()=>{beganOutside=false;});
  dialog.addEventListener('click',e=>{const dismiss=beganOutside&&outside(e);beganOutside=false;if(dialog.open&&dismiss){e.preventDefault();close();}});

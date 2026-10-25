@@ -37,31 +37,56 @@ test('causal article, Python and charts use the employee task story and distingu
 // Exercise navigation between hidden chapters, including direct links from cases.
 function guideDOM(){
  const keys=[...guide.groups.map((_,i)=>String(i)),'cases','basics'];
- const panels=keys.map(key=>({dataset:{guidePanel:key},hidden:key!=='0'}));
+ const panels=keys.map(key=>({dataset:{guidePanel:key},hidden:key!=='0',getBoundingClientRect:()=>({top:160-container.scrollTop})}));
  const buttons=keys.map(key=>({dataset:{guideView:key},attrs:{},setAttribute(k,v){this.attrs[k]=v;}}));
  const methods=guide.groups.flatMap((group,i)=>group.methods.map(method=>({
   id:'causal-method-'+method.id,open:false,
   closest:()=>panels[i],
   querySelector(){return{focus:options=>{this.focusOptions=options;}};},
-  scrollIntoView(options){this.scrollOptions=options;}
+  scrollIntoView(options){this.scrollOptions=options;container.scrollTop=600;}
  })));
- const root={dataset:{guideCurrent:'0'},querySelectorAll:selector=>selector==='[data-guide-panel]'?panels:buttons};
- const container={scrollTop:230,querySelector:()=>root,querySelectorAll:()=>methods};
+ const root={dataset:{guideCurrent:'0'},querySelectorAll:selector=>selector==='[data-guide-panel]'?panels:selector==='details'?methods:buttons};
+ const container={scrollTop:230,clientTop:0,getBoundingClientRect:()=>({top:40}),querySelector:()=>root,querySelectorAll:()=>methods};
  return{root,container,panels,buttons,methods};
 }
 
-test('situation navigation shows one chapter without resetting scroll or closing other methods',()=>{
+test('situation navigation starts new chapters at their heading and restores each reading position',()=>{
  const dom=guideDOM();dom.methods[0].open=true;
- for(const key of [...guide.groups.map((_,i)=>String(i)),'cases','basics']){
+ const keys=[...guide.groups.map((_,i)=>String(i)),'cases','basics'];
+ for(const [i,key] of keys.entries()){
   assert.equal(G.selectView(dom.container,key),true);
   assert.deepEqual(dom.panels.filter(p=>!p.hidden).map(p=>p.dataset.guidePanel),[key]);
   assert.deepEqual(dom.buttons.filter(b=>b.attrs['aria-pressed']==='true').map(b=>b.dataset.guideView),[key]);
   assert.equal(dom.root.dataset.guideCurrent,key);
-  assert.equal(dom.container.scrollTop,230);
+  assert.equal(dom.container.scrollTop,i===0?230:120);
+  dom.container.scrollTop=300+i*70;
   assert.equal(dom.methods[0].open,true);
  }
  assert.equal(G.selectView(dom.container,'missing'),false);
  assert.equal(dom.root.dataset.guideCurrent,'basics');
+ assert.equal(dom.container.scrollTop,930);
+ for(const [i,key] of keys.entries()){
+  G.selectView(dom.container,key);
+  assert.equal(dom.container.scrollTop,300+i*70);
+ }
+ dom.container.scrollTop=800;
+ G.selectView(dom.container,'basics');
+ assert.equal(dom.container.scrollTop,800,'clicking the active chapter must not move it');
+});
+
+test('guide reading positions survive a rerender without leaking to another guide',()=>{
+ const dom=guideDOM();dom.methods[0].open=true;
+ G.selectView(dom.container,'2');dom.container.scrollTop=740;
+ const snapshot=G.capture(dom.container);
+ const rerendered=guideDOM();rerendered.container.scrollTop=0;
+ assert.equal(G.restore(rerendered.container,snapshot),true);
+ assert.equal(rerendered.root.dataset.guideCurrent,'2');
+ assert.equal(rerendered.container.scrollTop,740);
+ assert.equal(rerendered.methods[0].open,true);
+ G.selectView(rerendered.container,'0');assert.equal(rerendered.container.scrollTop,230);
+ G.selectView(rerendered.container,'3');assert.equal(rerendered.container.scrollTop,120);
+ const independent=guideDOM();G.selectView(independent.container,'2');
+ assert.equal(independent.container.scrollTop,120);
 });
 
 test('every case-to-method link reveals its chapter and focuses the expanded method',()=>{
@@ -76,6 +101,13 @@ test('every case-to-method link reveals its chapter and focuses the expanded met
   assert.deepEqual(method.scrollOptions,{block:'start'});
  }
  assert.equal(G.jump(dom.container,'missing'),false);
+});
+
+test('jumping to a method saves the cases position and replaces the destination reading position',()=>{
+ const dom=guideDOM();G.selectView(dom.container,'cases');dom.container.scrollTop=520;
+ G.jump(dom.container,'causal-method-iv');assert.equal(dom.container.scrollTop,600);
+ G.selectView(dom.container,'cases');assert.equal(dom.container.scrollTop,520);
+ G.selectView(dom.container,'2');assert.equal(dom.container.scrollTop,600);
 });
 
 test('redesign retains every method, keeps one initial chapter and escapes editable content',()=>{

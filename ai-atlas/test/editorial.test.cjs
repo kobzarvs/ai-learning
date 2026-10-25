@@ -22,6 +22,37 @@ function database(user=visitor,respond=()=>[]){
 }
 const endpoints=import('../editorial-db.mjs');
 
+test('execution UI distinguishes queued, running, failed and published work and escapes results',()=>{
+ const {runMarkup,executionButton}=require('../editorial.js');
+ assert.match(runMarkup({status:'queued'}, {online:false}),/Исполнитель недоступен/);
+ assert.doesNotMatch(runMarkup({status:'queued'}, {online:true}),/Агент выполняет/);
+ const running=runMarkup({status:'running',phase:'Проверяет график',started_at:'2026-10-25T00:00:00Z',heartbeat_at:'2026-10-25T00:01:00Z'}, {online:true});
+ assert.match(running,/Агент выполняет/);assert.match(running,/Проверяет график/);
+ assert.match(executionButton({status:'accepted',run:{status:'running'}}),/disabled/);
+ assert.match(executionButton({status:'accepted',run:{status:'failed'}}),/Повторить/);
+ assert.match(executionButton({status:'pending',run:null}),/Выполнить сейчас/);
+ assert.equal(executionButton({status:'rejected',run:null}),'');
+ const done=runMarkup({status:'completed',summary:'<img src=x onerror=alert(1)>',result_revision:'42'});
+ assert.ok(!done.includes('<img'));assert.match(done,/&lt;img/);assert.match(done,/Выполнено/);
+});
+
+test('status polling retrieves terminal updates for all loaded pages',async()=>{
+ const {fetchRunUpdates}=require('../editorial.js');
+ const ids=Array.from({length:53},(_,i)=>String(i));
+ const result=await fetchRunUpdates(async url=>{
+  const notes=new URL(url,'https://atlas.test').searchParams.get('notes')?.split(',')||[];
+  return {worker:{online:true},runs:notes.includes('52')?[{id:'last-run',note_id:'52',status:'completed'}]:[]};
+ },ids);
+ assert.equal(result.runs.find(r=>r.note_id==='52')?.status,'completed');
+});
+
+test('completed jobs offer reopening rather than stale mark-done controls',()=>{
+ const {moderationButtons}=require('../editorial.js');
+ const markup=moderationButtons({status:'done',run:{status:'completed'}});
+ assert.match(markup,/Вернуть на рассмотрение/);assert.doesNotMatch(markup,/data-moderate="done"/);
+ assert.match(moderationButtons({status:'accepted',run:{status:'running'}}),/disabled/);
+});
+
 test('account identity safely renders GitHub names and limits avatar requests to numeric user IDs',()=>{
  const html=accountMarkup({id:'123',login:'reader',name:'<img src=x onerror=alert(1)>',isModerator:false},'account-test');
  assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img src=x/);
@@ -50,8 +81,18 @@ test('own-note listing binds the session identity and restricts pagination curso
  const {notesResponse}=await endpoints;const sql=database(visitor,()=>Array.from({length:51},(_,i)=>({id:String(i)})));
  const result=await notesResponse(request('GET',undefined,'?status=pending&before='+noteId),async()=>sql);
  assert.equal(result.status,200);const body=await result.json();assert.equal(body.notes.length,50);assert.equal(body.next,'49');
- const query=sql.calls.at(-1);assert.deepEqual(query.params,[false,visitor.id,'pending','',noteId]);
+ const query=sql.calls.at(-1);assert.deepEqual(query.params,[false,visitor.id,'pending','',noteId,'','',50]);
  assert.match(query.statement,/WHERE id=NULLIF\(\$5,''\)::uuid AND \(\$1::boolean OR user_id=\$2\)/);
+});
+test('inbox and history search are server-filtered, bounded and retain pagination scope',async()=>{
+ const {notesResponse}=await endpoints;
+ const sql=database(owner,q=>q.startsWith('SELECT n.*')?Array.from({length:21},(_,i)=>({id:String(i),status:'done'})):[]);
+ const response=await notesResponse(request('GET',undefined,'?scope=all&status=inbox&q=ResNet&limit=20'),async()=>sql);
+ assert.equal(response.status,200);const data=await response.json();assert.equal(data.notes.length,20);assert.equal(data.next,'19');
+ const query=sql.calls.find(c=>c.statement.startsWith('SELECT n.*'));
+ assert.deepEqual(query.params,[true,owner.id,'inbox','','','','ResNet',20]);
+ for(const query of ['?q='+encodeURIComponent('x'.repeat(201)),'?limit=0','?limit=51','?status=unrecognized'])
+  assert.equal((await notesResponse(request('GET',undefined,query),async()=>database(owner))).status,400);
 });
 
 test('only the verified owner can create an agent command; forged client permissions are ignored',async()=>{
@@ -179,4 +220,58 @@ test('text selection ignores code and controls and captures an exact topic/metho
  assert.equal(textBlock(target,content),block);
  assert.equal(textBlock({closest:()=>({})},content),null);
  assert.deepEqual(snapshot(block,content,{topicId:'causal',tab:'methods',revision:'138'}),{topicId:'causal',tab:'methods',contentRevision:'138',quote:'Первый абзац с пояснением.',anchor:{methodId:'rct',panel:'methods',section:'Заголовок',block:'1'}});
+});
+
+test('completed notes provide same-note rework and a safe material link',()=>{
+ const {executionButton,resultLink}=require('../editorial.js');
+ assert.match(executionButton({status:'done',run:{status:'completed'}}),/data-execute="rework"/);
+ const html=resultLink({topic_id:'knn',tab:'python'});assert.match(html,/href="\/\?tab=python#knn"/);assert.match(html,/target="_blank"/);assert.match(html,/noopener noreferrer/);
+ assert.match(resultLink({topic_id:'knn',tab:'topic'}),/tab=article/);
+});
+test('publication sync catches a completion first seen after reload and retries until revision reached',async()=>{
+ const {syncPublishedContent}=require('../editorial.js');let calls=[];const client={revision:'10',refresh:async options=>calls.push(options)};
+ const runs=[{status:'completed',result_revision:'13'},{status:'completed',result_revision:'12'}];
+ await syncPublishedContent(client,runs);await syncPublishedContent(client,runs);assert.deepEqual(calls,[{minRevision:'13'},{minRevision:'13'}]);
+ client.revision='13';await syncPublishedContent(client,runs);assert.equal(calls.length,2);
+});
+
+test('reader shows sign-in only for a known anonymous session',()=>{
+ assert.equal(accountMarkup(owner,'reader-account',false,{reader:true}),'');
+ assert.equal(accountMarkup(null,'reader-account',true,{reader:true}),'');
+ assert.match(accountMarkup(null,'reader-account',false,{reader:true}),/>Войти<\/button>/);
+ assert.match(accountMarkup(owner,'board-account'),/data-account-logout/);
+});
+test('sign-in returns to the open material and active tab, or the current board when reader is closed',()=>{
+ const {loginReturnTo}=require('../editorial.js');
+ assert.equal(loginReturnTo({topicId:'knn',tab:'python'},true,'#causal'),'/?tab=python#knn');
+ assert.equal(loginReturnTo({topicId:'knn',tab:'python'},false,'#causal'),'/#causal');
+});
+test('OAuth preserves material links while rejecting off-site and unrecognized return targets',async()=>{
+ const {authResponse}=await endpoints,saved={id:process.env.GITHUB_CLIENT_ID,secret:process.env.GITHUB_CLIENT_SECRET};
+ process.env.GITHUB_CLIENT_ID='test-client';process.env.GITHUB_CLIENT_SECRET='test-secret';
+ try{
+  for(const [back,expected] of [['/?tab=python#knn','/?tab=python#knn'],['/?tab=methods#causal','/?tab=methods#causal'],['//evil.test/','/'],['/\\evil.test/','/'],['/?tab=python&redirect=https://evil.test#knn','/'],['/?tab=invalid#knn','/']]){
+   const sql=database();await authResponse(new Request(origin+'/api/auth?action=login&returnTo='+encodeURIComponent(back)),async()=>sql);
+   assert.equal(sql.calls.find(c=>c.statement.startsWith('INSERT INTO atlas_oauth_states')).params[2],expected);
+  }
+ }finally{
+  for(const [key,value] of [['GITHUB_CLIENT_ID',saved.id],['GITHUB_CLIENT_SECRET',saved.secret]])if(value===undefined)delete process.env[key];else process.env[key]=value;
+ }
+});
+
+test('moderation can open one selected note directly while preserving server-side author restrictions',async()=>{
+ const {notesResponse}=await endpoints;
+ for(const [user,scope] of [[owner,'all'],[visitor,'mine']]){
+  const sql=database(user,statement=>statement.startsWith('SELECT n.*')?[{id:noteId,status:'pending'}]:[]);
+  const response=await notesResponse(request('GET',undefined,'?scope='+scope+'&id='+noteId),async()=>sql);assert.equal(response.status,200);
+  const query=sql.calls.find(c=>c.statement.startsWith('SELECT n.*'));assert.equal(query.params[5],noteId);assert.match(query.statement,/n.id=NULLIF\(\$6,''\)::uuid/);assert.equal(query.params[0],user===owner);assert.equal(query.params[1],user.id);
+ }
+ assert.equal((await notesResponse(request('GET',undefined,'?id=bad'),async()=>database(owner))).status,400);
+});
+
+test('whole-section improvement includes editorial scope and preserves optional wishes',()=>{
+ const {improvementInstruction}=require('../editorial.js');
+ const instruction=improvementInstruction('  Сохрани математические выводы  ');
+ for(const text of ['read_topic','структур','повтор','понятн','иллюстрац','SVG','Сохрани математические выводы'])assert.ok(instruction.includes(text),text);
+ assert.ok(improvementInstruction('').length<2000);
 });

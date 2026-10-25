@@ -3,9 +3,8 @@ const C=require('../workspace-core.js'),A=require('../core.js'),data=require('..
 const context={window:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../lesson-data.js'),'utf8'),context);
 const lessons=context.window.ATLAS_LESSONS,index=A.indexTree(data.root);
 test('every leaf has runnable code, instructions, expected output and a bounded claim',()=>{
- const leaves=[...index.values()].filter(n=>!n.children);assert.equal(Object.keys(lessons.topics).length,113);
+ const leaves=[...index.values()].filter(n=>!n.children);assert.deepEqual(Object.keys(lessons.topics).sort(),leaves.map(n=>n.id).sort());
  for(const n of leaves){const l=lessons.topics[n.id];for(const key of ['goal','expected','exercise','explanation','limits','code'])assert.ok(l[key]?.length>30,n.id+': '+key);assert.ok(l.steps.length>=4);assert.match(l.code,/import torch/);assert.equal(l.code,fs.readFileSync(require.resolve('../../examples/python/'+n.id+'.py'),'utf8'));}
- assert.equal(Object.values(lessons.topics).filter(l=>l.rust).length,25);
  assert.equal(lessons.meta.torch,'2.14.1');assert.equal(lessons.meta.burn,'0.22.1');
  for(const l of Object.values(lessons.topics).filter(l=>l.rust)){assert.match(l.rust.cargo,/=0\.22\.1/);assert.doesNotMatch(l.rust.code,/Tensor<B|\.to_vec::/);}
 });
@@ -35,4 +34,19 @@ test('new typography stays at least 20px and no serif display font returns',()=>
  const css=fs.readFileSync(require.resolve('../styles.css'),'utf8');
  for(const m of css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g))assert.ok(Number(m[1])>=20);
  assert.doesNotMatch(css,/Times|Georgia|(?<!-)\bserif[;,]/);
+});
+
+test('new Rust examples appear on saved boards without moving notes or duplicating cards',()=>{
+ const node=index.get('lab-game'),b=C.defaultBoard(node,{});
+ const note=C.addNote(b,'Мой опыт','Сохранить текст',{x:1000,y:90});
+ const group=C.groupCards(b,[note.id],'Мои результаты');
+ const original=structuredClone(b);
+ assert.equal(C.ensureLessonCards(b,node,lessons.topics),true);
+ assert.deepEqual(b.cards.slice(0,original.cards.length),original.cards);
+ assert.deepEqual(b.groups,original.groups);
+ const rust=b.cards.find(c=>c.id==='rust:lab-game');
+ assert.ok(rust);
+ assert.ok(rust.y>=group.y+group.h);
+ assert.equal(C.ensureLessonCards(b,node,lessons.topics),false);
+ assert.equal(b.cards.filter(c=>c.type==='rust').length,1);
 });

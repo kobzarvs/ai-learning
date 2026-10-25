@@ -1,5 +1,6 @@
 """Independent Burn programs with the same learning task as the PyTorch tab."""
 from textwrap import dedent
+import re
 from catalog import LESSONS
 
 RUST = {}
@@ -40,13 +41,24 @@ fn device() -> Device {
     device
 }
 '''
-def add(ids, code, explanation, expected, limits=None):
-    for topic in ids.split():
+def rust_source(code):
+    """Assemble a standalone program; pure Rust algorithms need no device scaffold."""
+    body = dedent(code).strip()+'\n'
+    if not re.search(r'\bdevice\s*\(', body):
+        return body
+    header = HEADER if 'Distribution::' in code else HEADER.replace('Distribution, ', '')
+    return header+body
+
+
+def add(ids, code, explanation, expected, limits=None, exercise=None):
+    topics = ids.split()
+    if len(topics) != len(set(topics)) or any(topic in RUST for topic in topics):
+        raise ValueError(f"Duplicate Rust topic registration: {ids}")
+    for topic in topics:
         lesson = LESSONS[topic]
-        header = HEADER if 'Distribution::' in code else HEADER.replace('Distribution, ', '')
-        RUST[topic] = dict(goal=lesson['goal'], code=header+dedent(code).strip()+'\n',
+        RUST[topic] = dict(goal=lesson['goal'], code=rust_source(code),
             cargo=CARGO, explanation=explanation, expected=expected,
-            exercise=EXERCISES.get(topic, lesson['exercise']), kind=lesson['kind'],
+            exercise=exercise if exercise is not None else EXERCISES.get(topic, lesson['exercise']), kind=lesson['kind'],
             limits=limits or lesson['limits'],
             parity='Та же учебная задача, размеры данных и разделение обучения/проверки, что в PyTorch. Генераторы случайных чисел различаются, поэтому значения не обязаны совпадать побитово.')
 
@@ -121,7 +133,7 @@ for ids, count, train, hidden, data in [
     add(ids,code,'Два линейных слоя учатся различать две категории. Между слоями функция SiLU нелинейно преобразует значения, чтобы сеть могла строить сложную границу. Функция ошибки CrossEntropy сравнивает оценки модели с правильной категорией. Последние объекты не участвуют в обновлении весов.',
         'Доля правильных ответов на новых точках выше 0.9.')
 
-add('cnn vision', '''
+add('cnn vision lab-vision', '''
 use burn::{module::Module, nn::{Linear, LinearConfig, PaddingConfig2d,
     conv::{Conv2d, Conv2dConfig}, loss::CrossEntropyLossConfig},
     optim::{AdamConfig, GradientsParams}, tensor::{TensorData, Int, activation::silu}};
@@ -479,3 +491,32 @@ fn main() {
 ''','Бета-распределение описывает возможные значения вероятности от 0 до 1. Начинаем с параметров 1 и 1; шесть успехов и две неудачи увеличивают их до 7 и 3. Из этого распределения генерируем 10 000 значений и находим границы, за которыми лежит по 2.5% выборки.',
     'Средняя вероятность 0.7; интервал примерно [0.40,0.93], с небольшим случайным отклонением.',
     'Способ генерации через сумму логарифмов использует целые параметры бета-распределения; для произвольных вещественных параметров нужен общий генератор гамма-распределения. Интервал описывает неопределённость вероятности, а не гарантирует исход следующего опыта.')
+
+from game_burn import GAME_RUST
+for topic, code in GAME_RUST.items():
+    add(topic, code, LESSONS[topic]['explanation'], LESSONS[topic]['expected'])
+
+# Domain modules supply standalone bodies and Rust-specific exercises.
+from burn_sequences import register as register_sequences
+from burn_generative import register as register_generative
+register_sequences(add)
+register_generative(add)
+
+from burn_classical import register as register_classical
+register_classical(add)
+
+from burn_science import register as register_science
+from burn_adaptation import register as register_adaptation
+from burn_decisions import register as register_decisions
+register_science(add)
+register_adaptation(add)
+register_decisions(add)
+
+from burn_training import register as register_training
+from burn_systems import register as register_systems
+from burn_applications import register as register_applications
+from burn_evaluation import register as register_evaluation
+register_training(add)
+register_systems(add)
+register_applications(add)
+register_evaluation(add)

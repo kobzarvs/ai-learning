@@ -8,7 +8,7 @@ const colors={tasks:['#c2e0ca','#e1ebe2','#d1e2d3','#a6c7ab','#315d40'],models:[
 const css=b=>{const c=colors[b]||colors.models;return `--label:${c[0]};--tint:${c[1]};--nested:${c[2]};--stroke:${c[3]};--accent:${c[3]};--ink:${c[4]}`;};
 const links=[['mlp','cnn','Работа с локальными признаками'],['rnn','lstm','Управление памятью'],['cnn','specialblocks','Блоки и архитектуры для зрения'],['ae','vae','Вероятностное скрытое пространство'],['diffusion','flowmatching','Родственные пути генерации'],['ssm','linearattention','Альтернативы полному attention'],['linear','lab-text','Первый классификатор команд'],['cnn','lab-vision','Классификация изображений'],['transfer','lora','Экономная адаптация'],['quant','binary','Предельно низкая точность'],['supervised','lab-table','Обучение по размеченным примерам'],['transformer','lora','Адаптация предобученной модели'],['distill','compactarch','Обучение компактного ученика']];
 let route;try{route=C.restoreRoute(localStorage.getItem('ai-atlas-route-v1'),index);}catch{route=new Set();}
-let spaces=null;
+let spaces=null,searchController=null,searchSelection=0;
 let view={scale:.85,x:0,y:0},current='neural',selected=null,toastTimer,lastDetailTrigger=null;
 let viewportWidth=$('canvas').clientWidth,viewportHeight=$('canvas').clientHeight;
 const pan=C.createPanController();
@@ -73,8 +73,7 @@ function closeDetail(){hideTerm();highlightConnections(null);document.body.class
 function about(){highlightConnections(null);lastDetailTrigger=document.activeElement;selected=null;$('inspector').hidden=false;document.body.classList.add('detail-open');$('detail-category').textContent='ПУТЕВОДИТЕЛЬ';$('detail-body').style=css('practice');$('detail-body').innerHTML=`<div class="welcome-art" aria-hidden="true"><span>↗</span><span>✳</span><span>∿</span></div><span class="detail-tag">113 тем · 5 областей</span><h2 class="detail-title">Большая карта.<br>Маленькие шаги.</h2><p class="detail-intro">Здесь можно разобраться, какие модели существуют, как они учатся и что попробовать на своём компьютере.</p><div class="legend"><b>01</b> Выбери область в меню слева.</div><div class="legend"><b>02</b> Приблизь холст и открой карточку.</div><div class="legend"><b>03</b> Отметь звёздочкой интересные темы.</div><section class="lab-box"><h3>Начни с небольшого результата</h3><p>Классификатор команд, распознавание изображений, поиск аномалий или простой прогноз — у каждой задачи есть несколько путей.</p><button class="primary-button" data-nav="projects">Выбрать первый эксперимент →</button></section><section class="detail-section"><h3>КАК ЧИТАТЬ СВЯЗИ</h3><p>Цвет обозначает область. Сплошные линии связывают близкие идеи внутри неё, пунктир — темы из разных областей. Точный смысл связи указан в карточке. Это не обязательный порядок обучения.</p></section><section class="detail-section"><h3>ГРАНИЦЫ КАРТЫ</h3><p>Карта охватывает основные семейства и практические подходы, но не каждую публикацию. Архитектура, способ обучения и способ сжатия — разные оси: их можно сочетать. «Исследования» не означает преимущество перед простым методом.</p><p>Материалы проверены 24 октября 2026. Ссылки на документацию и статьи находятся в карточках.</p></section>`;}
 function openNav(){ $('navigation').hidden=false;$('toggle-nav').setAttribute('aria-expanded','true'); }
 function closeNav(){ $('navigation').hidden=true;$('toggle-nav').setAttribute('aria-expanded','false'); }
-function hideSearch(){ $('search-results').hidden=true;$('search').setAttribute('aria-expanded','false'); }
-function renderSearch(){const q=$('search').value.trim();if(!q){hideSearch();return;}const results=C.search(index,q);$('search-results').innerHTML=results.length?results.slice(0,15).map(n=>`<button data-result="${n.id}">${rich(n.name)}<small>${rich(index.get(n.parent)?.name||'Карта')}</small></button>`).join(''):'<p>Ничего не найдено. Попробуй «звук», «изображения», «сжатие» или «команды».</p>';$('search-results').hidden=false;$('search').setAttribute('aria-expanded','true');}
+function hideSearch(){searchController?.hide();$('search-results').hidden=true;$('search').setAttribute('aria-expanded','false');}
 function renderRoute(){ $('route-list').innerHTML=route.size?[...route].map(id=>{const n=index.get(id);return `<div class="route-item"><button class="route-open" data-route-open="${id}">${rich(n.name)}<small>${rich(index.get(n.parent)?.name||'')}</small></button><button class="icon-button" data-remove="${id}" aria-label="Убрать ${esc(n.name)} из маршрута">×</button></div>`;}).join(''):'<div class="empty-route">Здесь пока чистый лист.<br>Нажимай ☆ на карточках, чтобы собрать свой маршрут.</div>';$('download-route').disabled=!route.size; }
 function downloadRoute(){const text='# Мой маршрут AI Atlas\n\n'+[...route].map((id,i)=>{const n=index.get(id);return `## ${i+1}. ${n.name}\n\n${n.what}\n\n${n.how?'Как работает: '+n.how+'\n\n':''}${n.example?'Пример: '+n.example+'\n\n':''}${n.training?'Данные для обучения: '+n.training+'\n\n':''}${n.steps?n.steps.map((step,j)=>`${j+1}. ${step}`).join('\n')+'\n\n':''}${n.criteria?'Проверка результата: '+n.criteria+'\n\n':''}${n.lab?'Идея проекта: '+n.lab+'\n\n':''}${n.note?'Учесть: '+n.note+'\n\n':''}${(n.sources||[]).map(k=>data.sources[k]).filter(Boolean).map(([t,u])=>`- [${t}](${u})`).join('\n')}`;}).join('\n\n');const url=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='ai-atlas-route.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 const tooltip=$('term-tooltip');let activeTerm=null,termTimer;
@@ -92,13 +91,23 @@ function deferHideTerm(){clearTimeout(termTimer);termTimer=setTimeout(hideTerm,1
 document.addEventListener('pointerover',e=>{const term=e.target.closest('.term');if(term&&term!==activeTerm)showTerm(term);else if(e.target.closest('#term-tooltip'))clearTimeout(termTimer);});
 document.addEventListener('pointerout',e=>{if(e.target.closest('.term,#term-tooltip')&&!e.relatedTarget?.closest('.term,#term-tooltip'))deferHideTerm();});
 document.addEventListener('focusin',e=>{if(e.target.matches('.term'))showTerm(e.target);else hideTerm();});
-document.addEventListener('click',e=>{const term=e.target.closest('.term');if(!term)return;if(e.target.closest('#canvas')&&(term.closest('button')||pan.blocksClick(e.detail===0)))return;e.preventDefault();e.stopImmediatePropagation();showTerm(term);},true);
+document.addEventListener('click',e=>{const term=e.target.closest('.term');if(!term)return;if(e.target.closest('#reader-content')&&(e.metaKey||(e.ctrlKey&&e.shiftKey)))return;if(e.target.closest('#canvas')&&(term.closest('button')||pan.blocksClick(e.detail===0)))return;e.preventDefault();e.stopImmediatePropagation();showTerm(term);},true);
 document.addEventListener('keydown',e=>{if(e.target.matches('.term')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showTerm(e.target);}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.term,#term-tooltip'))hideTerm();},true);
 window.addEventListener('resize',hideTerm);$('inspector').addEventListener('scroll',hideTerm);
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.nav){navigate(b.dataset.nav,{fit:true});return;}if(b.dataset.open){navigate(b.dataset.open,{details:true});return;}if(b.dataset.result){navigate(b.dataset.result,{details:true});$('search').value='';return;}if(b.dataset.save){toggleSaved(b.dataset.save);return;}if(b.dataset.remove){toggleSaved(b.dataset.remove);return;}if(b.dataset.routeOpen){$('route-dialog').close();navigate(b.dataset.routeOpen,{details:true});return;}});
 $('toggle-nav').onclick=()=> $('navigation').hidden?openNav():closeNav();$('close-nav').onclick=closeNav;$('home').onclick=fitAll;$('overview').onclick=fitAll;$('all-tool').onclick=fitAll;$('start-tool').onclick=()=>navigate('projects',{fit:true});$('fit-current').onclick=()=>spaces?.active?spaces.fit():current==='root'?fitAll():navigate(current,{fit:true});$('zoom-in').onclick=()=>zoom(1.2);$('zoom-out').onclick=()=>zoom(1/1.2);$('close-detail').onclick=closeDetail;$('about-button').onclick=about;
-$('search').addEventListener('input',renderSearch);$('search').addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();$('search-results').querySelector('button')?.focus();}if(e.key==='Enter')$('search-results').querySelector('button')?.click();if(e.key==='Escape')hideSearch();});
+searchController=window.AtlasSearch?.create({input:$('search'),results:$('search-results'),
+ localSearch:query=>C.search(index,query).slice(0,15).map(n=>({topicId:n.id,title:n.name,tab:'article',section:index.get(n.parent)?.name||'О теме',snippet:n.what||'',anchor:{},exact:n.id.toLowerCase()===query.toLowerCase()||n.name.toLowerCase()===query.toLowerCase()})),
+ async onSelect(item){
+  const selection=++searchSelection;navigate(item.topicId,{details:true});spaces?.openMaterial(item.topicId,item.tab,item.anchor);
+  try{if(item.revision)await window.ATLAS_CONTENT_CLIENT?.refresh({minRevision:item.revision});}catch{}
+  if(selection!==searchSelection||!$('reader').open||spaces?.active!==item.topicId||$('reader').dataset.tab!==item.tab)return;
+  if(item.tab==='exercise'&&item.anchor?.exerciseLanguage)spaces.openMaterial(item.topicId,item.tab,item.anchor);
+  window.AtlasSearch.reveal($('reader-content'),item.anchor);
+ }
+});
+$('search').addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();$('search-results').querySelector('button')?.focus();}if(e.key==='Enter')$('search-results').querySelector('button')?.click();if(e.key==='Escape')hideSearch();});
 $('search-results').addEventListener('keydown',e=>{const a=[...$('search-results').querySelectorAll('button')],i=a.indexOf(document.activeElement);if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();a[C.clamp(i+(e.key==='ArrowDown'?1:-1),0,a.length-1)]?.focus();}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.search-box'))hideSearch();});
 window.AtlasUI?.bindDismiss($('route-dialog'));
@@ -169,13 +178,14 @@ $('nodes').addEventListener('focusin',e=>{const b=e.target.closest('button'),id=
 window.addEventListener('hashchange',()=>{const id=readHash();if(id==='root')fitAll();else if(index.has(id))navigate(id,{details:true,hash:false});});
 new ResizeObserver(()=>{const w=$('canvas').clientWidth,h=$('canvas').clientHeight;if(w!==viewportWidth||h!==viewportHeight){view.x+=(w-viewportWidth)/2;view.y+=(h-viewportHeight)/2;updateView();}}).observe($('canvas'));
 spaces=window.AtlasSpaces?.create({index,rich,esc,toast,sources:data.sources,hideTerm,closeDetail,getView:()=>view,setView:v=>{view={...v};updateView();},returnToMap:v=>{if(v){view={...v};updateView();$('breadcrumb-current').textContent='Карта знаний';history.replaceState(null,'','#root');}else fitAll();},selectTool:()=>setPan(false),panBlocks:keyboard=>pan.blocksClick(keyboard)});
-renderBoard();syncPanCursor();const initial=readHash();requestAnimationFrame(()=>{if(initial==='root')fitAll();else navigate(index.has(initial)?initial:'neural',{details:!!initial&&index.has(initial),hash:false});});
+renderBoard();syncPanCursor();const initial=readHash();requestAnimationFrame(()=>{if(initial==='root')fitAll();else {navigate(index.has(initial)?initial:'neural',{details:!!initial&&index.has(initial),hash:false});const tab=new URLSearchParams(location.search||'').get('tab');if(tab&&index.has(initial))spaces?.openMaterial(initial,tab);}});
 let contentFailureShown=false;
 window.ATLAS_CONTENT_CLIENT=window.AtlasContent?.start({
   onChange(records,updated){
     window.AtlasContent.apply(records,{data,index,lessons:window.ATLAS_LESSONS,presentation});
     termRenderer=C.createTermRenderer(data.glossary);
     renderBoard();spaces?.refreshContent();
+    searchController?.invalidate();
     if(selected&&!$('inspector').hidden)showDetail(selected);
     $('breadcrumb-current').innerHTML=rich(index.get(spaces?.active||current)?.name||'Карта знаний');
     if(updated)toast('Материалы обновлены');
