@@ -95,7 +95,6 @@
 .plot-reading-key{line-height:1.5!important}
 .experiment-details{margin:20px 0;font-size:20px;line-height:1.6}
 .experiment-details summary{cursor:pointer;font-weight:600}
-.reader-next{display:flex;flex-wrap:wrap;gap:12px}
 @media(max-width:760px){.reader.reader-wide{inset:0;width:100vw;height:100dvh}.reader-wide .reader-content{padding:18px 12px 48px}.experiment-controls-row{grid-template-columns:1fr;gap:0}.lesson-visual .experiment-summary{grid-template-columns:1fr;gap:8px}}
 
 /* The guide keeps one situation visible and puts the example beside its method. */
@@ -106,10 +105,8 @@
 .causal-guide h3{font-size:20px;line-height:1.4;margin:0 0 8px;color:#263e31}
 .causal-guide button,.causal-guide summary{font:inherit}
 .causal-guide button:focus-visible,.causal-guide summary:focus-visible{outline:3px solid #386a9a;outline-offset:3px}
-.guide-intro{display:flex;align-items:center;gap:32px;justify-content:space-between;padding:4px 0 24px;border-bottom:1px solid #d8e1d8;margin-bottom:28px}
-.guide-intro>div{max-width:870px}
+.guide-intro{padding:4px 0 24px;border-bottom:1px solid #d8e1d8;margin-bottom:28px}
 .causal-guide .guide-eyebrow{font-size:20px;color:#677969;margin:0 0 8px}
-.guide-experiment-link{border:1px solid #cbd7c7;background:#f0f4ec;padding:12px 16px;border-radius:8px;color:#35583f;text-align:left;flex:0 0 240px;cursor:pointer}
 .guide-layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:36px;align-items:start}
 .guide-sidebar{position:sticky;top:0;min-width:0;padding-right:24px;border-right:1px solid #d8e1d8}
 .causal-guide .guide-nav-label{font-weight:650;margin:0 0 12px}
@@ -165,8 +162,8 @@
 .guide-study-route li+li{margin-top:12px}
 .guide-basics{margin:0}
 .guide-basics>div{padding:6px 0;border-bottom:1px solid #dbe3d7}
-@media(max-width:1100px){.guide-layout{grid-template-columns:280px minmax(0,1fr);gap:24px}.guide-sidebar{padding-right:16px}.guide-requirements{grid-template-columns:1fr;gap:18px}.guide-assumptions{padding:14px 0 0;border-left:0;border-top:2px solid #d6ba85}.guide-intro{align-items:start}.guide-experiment-link{flex-basis:210px}}
-@media(max-width:760px){.guide-intro{display:block;margin-bottom:20px}.guide-experiment-link{margin-top:18px;width:100%}.guide-layout{grid-template-columns:1fr;gap:24px}.guide-sidebar{position:static;border-right:0;border-bottom:1px solid #d8e1d8;padding:0 0 20px}.guide-sidebar button{padding:10px}.guide-main{min-height:0}.guide-method>summary{padding:16px;gap:10px}.guide-method-number{display:none}.guide-method-body{padding:16px}.guide-method-heading strong{font-size:22px}.guide-example{padding:16px}}
+@media(max-width:1100px){.guide-layout{grid-template-columns:280px minmax(0,1fr);gap:24px}.guide-sidebar{padding-right:16px}.guide-requirements{grid-template-columns:1fr;gap:18px}.guide-assumptions{padding:14px 0 0;border-left:0;border-top:2px solid #d6ba85}}
+@media(max-width:760px){.guide-intro{margin-bottom:20px}.guide-layout{grid-template-columns:1fr;gap:24px}.guide-sidebar{position:static;border-right:0;border-bottom:1px solid #d8e1d8;padding:0 0 20px}.guide-sidebar button{padding:10px}.guide-main{min-height:0}.guide-method>summary{padding:16px;gap:10px}.guide-method-number{display:none}.guide-method-body{padding:16px}.guide-method-heading strong{font-size:22px}.guide-example{padding:16px}}
 
 /* Published content can tune a tab without changing the application. */
 .reader[style*="--content-reader-width"]{width:min(var(--content-reader-width),calc(100vw - 40px));max-width:none}

@@ -107,8 +107,7 @@ function create(o){
    const normalize=text=>String(text||'').replace(/\s+/g,' ').trim();
    const sharedExample=normalize(n.tasks)===normalize(n.example);
    html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',sharedExample?'':n.tasks)}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
-   if(l)html+=textSection('Что будем делать руками',l.goal)+`<button class="inline-primary" data-reader-tab="python">Перейти к примеру на Python →</button>`;
-   if(l?.guide)html+=`<div class="reader-next"><button class="inline-primary" data-reader-tab="exercise">Открыть опыт с графиками →</button><button class="inline-primary" data-reader-tab="methods">Изучить методы и реальные случаи →</button></div>`;
+   if(l)html+=textSection('Что будем делать руками',l.goal);
    if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
   }else if(l?.guide&&mode==='methods'){
    html=scope.AtlasLessonGuide.render(l.guide);
@@ -121,7 +120,6 @@ function create(o){
    const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
    html=`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal||l.goal)+launchGuide(n.id,l,mode);
    html+=textSection('Разбор',example.explanation||l.explanation)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Что пример не доказывает',example.limits||l.limits);
-   html+=`<button class="inline-primary" data-reader-tab="exercise">${n.id==='causal'?'Открыть опыт с графиками':'Перейти к самостоятельному заданию'} →</button>`;
    if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
    html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
   }

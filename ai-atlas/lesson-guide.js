@@ -34,7 +34,7 @@ function render(guide){
     </div></details>`;
   }).join('')}</div></section>`).join('');
  return `<div class="causal-guide" data-guide-current="0">
-  <header class="guide-intro"><div><p class="guide-eyebrow">Методы и семейства: ${count} · Разборы: ${guide.cases.length}</p><h2>Как выбрать причинный метод</h2><p>Начни с условий своей задачи. В каждой группе — методы, примеры и требования к сравнению.</p></div><button class="guide-experiment-link" data-reader-tab="exercise">Начать с опыта об инструкции ↗</button></header>
+  <header class="guide-intro"><p class="guide-eyebrow">Методы и семейства: ${count} · Разборы: ${guide.cases.length}</p><h2>Как выбрать причинный метод</h2><p>Начни с условий своей задачи. В каждой группе — методы, примеры и требования к сравнению.</p></header>
   <div class="guide-layout"><nav class="guide-sidebar" aria-label="Выбор ситуации и справочников"><p class="guide-nav-label">Какие у тебя условия?</p>
    ${guide.groups.map((group,index)=>`<button data-guide-view="${index}" aria-controls="causal-guide-${index}" aria-pressed="${index===0}"><span class="guide-nav-number" aria-hidden="true">${String(index+1).padStart(2,'0')}</span><span>${esc(group.situation||situations[group.methods[0]?.id]||cleanTitle(group.title))}</span><span class="guide-nav-arrow" aria-hidden="true">→</span></button>`).join('')}
    <div class="guide-nav-extra"><button data-guide-view="cases" aria-controls="causal-cases" aria-pressed="false">Все случаи из практики <span aria-hidden="true">→</span></button><button data-guide-view="basics" aria-controls="causal-basics" aria-pressed="false">Понятия и порядок изучения <span aria-hidden="true">→</span></button></div>
