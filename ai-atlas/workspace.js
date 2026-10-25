@@ -13,7 +13,7 @@ function create(o){
  const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
  try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст.');}
  const board=()=>boards[active];
- function save(){try{localStorage.setItem(storageKey,JSON.stringify({version:1,boards}));$('space-status').textContent='Сохранено в этом браузере';}catch{$('space-status').textContent='Не сохранено — скачай копию';toast('Не удалось сохранить изменения. Скачай копию холстов.');}}
+ function save(){try{localStorage.setItem(storageKey,JSON.stringify({version:1,boards}));$('space-status').textContent='Сохранено в этом браузере';}catch{$('space-status').textContent='Не удалось сохранить изменения в браузере';toast('Не удалось сохранить изменения в браузере. Не закрывай вкладку, пока не освободишь место.');}}
  function checkpoint(){undo.push({id:active,board:structuredClone(board())});if(undo.length>30)undo.shift();$('space-undo').disabled=false;}
  function redrawSelection(){world.querySelectorAll('[data-card]').forEach(el=>el.classList.toggle('is-selected',selection.has(el.dataset.card)));world.querySelectorAll('[data-group]').forEach(el=>el.classList.toggle('is-selected',el.dataset.group===selectedGroup));$('space-selection').textContent=selection.size?`Выбрано: ${selection.size}`:selectedGroup?'Выбрана группа':'Перетаскивай за ⠿ · Ctrl / ⌘ + клик — выбрать';}
  function render(){
@@ -33,12 +33,12 @@ function create(o){
   views.set(active||'root',{...getView()});if(remember)stack.push(active);
   active=id;if(!boards[id])boards[id]=C.defaultBoard(index.get(id),lessons);
   selection.clear();selectedGroup=null;lasso=false;drag=null;
-  $('world').hidden=true;world.hidden=false;$('space-toolbar').hidden=false;canvas.classList.add('in-space');canvas.classList.remove('lasso-mode');
-  $('breadcrumb-current').innerHTML=rich(index.get(id).name);$('space-title').innerHTML=rich(index.get(id).name);$('space-lasso').setAttribute('aria-pressed','false');
+  $('world').hidden=true;world.hidden=false;$('space-tools').hidden=false;$('space-back').hidden=false;canvas.classList.add('in-space');canvas.classList.remove('lasso-mode');
+  $('breadcrumb-current').innerHTML=rich(index.get(id).name);$('space-lasso').setAttribute('aria-pressed','false');
   render();setView(views.get(id)||{x:32,y:24,scale:1});
   if(hash)history.replaceState(null,'','#'+encodeURIComponent(id));save();return true;
  }
- function leave({restore=true}={}){if(!active)return;views.set(active,{...getView()});active=null;stack=[];selection.clear();drag=null;world.hidden=true;$('space-toolbar').hidden=true;canvas.classList.remove('in-space','lasso-mode');$('world').hidden=false;closeReader();if(restore&&views.has('root'))setView(views.get('root'));}
+ function leave({restore=true}={}){if(!active)return;views.set(active,{...getView()});active=null;stack=[];selection.clear();drag=null;world.hidden=true;$('space-tools').hidden=true;$('space-back').hidden=true;canvas.classList.remove('in-space','lasso-mode');$('world').hidden=false;closeReader();if(restore&&views.has('root'))setView(views.get('root'));}
  function back(){const target=stack.pop();if(target){enter(target,{remember:false});}else{const rootView=views.get('root');leave();o.returnToMap(rootView);}}
  function fit(){if(!active)return;setView(scope.AtlasCore.fitBox(C.bounds([...board().cards,...board().groups]),canvas.clientWidth,canvas.clientHeight,80,1));}
  function point(e){const r=canvas.getBoundingClientRect(),v=getView();return{x:(e.clientX-r.left-v.x)/v.scale,y:(e.clientY-r.top-v.y)/v.scale};}
@@ -142,7 +142,7 @@ function create(o){
   $('reader').classList.toggle('reader-code',codeMode);
   $('reader').classList.toggle('reader-wide',codeMode||(n.id==='causal'&&['exercise','methods'].includes(mode)));
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
-  scope.ATLAS_EDITORIAL?.update({topicId:n.id,tab:mode,revision:presentation.revision||'0'});
+  scope.ATLAS_EDITORIAL?.update({topicId:n.id,title:n.name,tab:mode,revision:presentation.revision||'0'});
   scope.ATLAS_CONTENT_CLIENT?.refresh();
  }
  function refreshLaunch(){
@@ -208,7 +208,7 @@ function create(o){
  });
  canvas.addEventListener('click',e=>{if(active&&suppressClick&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();}},true);
  document.addEventListener('keydown',e=>{if(!active||e.target.closest('input,textarea,select,dialog')||e.shiftKey)return;const moves={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]},handle=e.target.closest('[data-drag-card],[data-drag-group]');if(handle&&moves[e.key]){e.preventDefault();checkpoint();const [dx,dy]=moves[e.key].map(v=>v*(e.altKey?5:1));if(handle.dataset.dragGroup)C.moveGroup(board(),handle.dataset.dragGroup,dx,dy);else{const c=board().cards.find(c=>c.id===handle.dataset.dragCard);c.x+=dx;c.y+=dy;if(c.groupId)C.fitGroup(board(),c.groupId);}const cardId=handle.dataset.dragCard,groupId=handle.dataset.dragGroup;save();render();[...world.querySelectorAll('[data-drag-card],[data-drag-group]')].find(x=>cardId?x.dataset.dragCard===cardId:x.dataset.dragGroup===groupId)?.focus();}});
- return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},refreshContent(){render();if(active)$('space-title').textContent=index.get(active)?.name||'';if(readerCard&&readerCard.type!=='note')refreshLaunch();},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
+ return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},refreshContent(){render();if(active)$('breadcrumb-current').innerHTML=rich(index.get(active)?.name||'');if(readerCard&&readerCard.type!=='note')refreshLaunch();},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
 }
 scope.AtlasSpaces={create};
 })(window);

@@ -2,7 +2,7 @@
 'use strict';
 const labels={clarify:'Расшифровать',rewrite:'Переписать по-человечески',custom:'Своя инструкция'};
 const statuses={pending:'На рассмотрении',accepted:'Принято',rejected:'Отклонено',done:'Выполнено'};
-const tabNames={article:'Теория',methods:'Методы и случаи',python:'Python',rust:'Rust + Burn',mlx:'Python + MLX',exercise:'Эксперимент / задание'};
+const tabNames={topic:'Весь раздел',article:'Теория',methods:'Методы и случаи',python:'Python',rust:'Rust + Burn',mlx:'Python + MLX',exercise:'Эксперимент / задание'};
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normalize=value=>String(value||'').replace(/\s+/g,' ').trim();
 const blockSelector='p,h1,h2,h3,h4,li,dt,dd,blockquote,figcaption,.guide-method-heading>strong,.guide-method-heading>span,.guide-case>summary>strong';
@@ -22,13 +22,17 @@ function snapshot(block,content,context){
    section:normalize(section?.querySelector('h2,h3')?.textContent).slice(0,300),
    block:String([...content.querySelectorAll(blockSelector)].indexOf(block))}};
 }
+function topicSnapshot(context){
+ return {topicId:context.topicId,tab:'topic',contentRevision:context.revision||'0',
+  quote:normalize(context.title||context.topicId),anchor:{methodId:'',panel:'',section:'',block:''}};
+}
 
 function accountMarkup(user,id,loading=false){
  if(!user)return `<button class="account-login" data-account-login${loading?' disabled aria-busy="true"':''}>Войти</button>`;
  const name=user.name||user.login,initials=name.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
  const avatar=/^\d+$/.test(String(user.id))?`<img src="https://avatars.githubusercontent.com/u/${user.id}?s=80" alt="" width="36" height="36" referrerpolicy="no-referrer">`:'';
  return `<button class="account-trigger" popovertarget="${id}" aria-controls="${id}" aria-expanded="false" aria-label="Аккаунт: ${esc(name)}" title="${esc(name)} · @${esc(user.login)}">
-  <span class="account-avatar" aria-hidden="true"><span>${esc(initials)}</span>${avatar}</span><span class="account-name">${esc(name)}</span><span class="account-chevron" aria-hidden="true">⌄</span></button>
+  <span class="account-avatar" aria-hidden="true"><span>${esc(initials)}</span>${avatar}</span><span class="account-name">${esc(name)}</span><svg class="account-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg></button>
   <div id="${id}" class="account-menu" popover="auto" aria-label="Меню пользователя">
    <div class="account-identity"><strong>${esc(name)}</strong><span>@${esc(user.login)}</span></div>
    <button data-account-notes>${user.isModerator?'Модерация замечаний':'Мои замечания'}</button>
@@ -99,16 +103,25 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
  });
  });
  renderAccounts();
+ const topicButton=doc.getElementById('reader-feedback');
+ topicButton?.addEventListener('click',async()=>{
+  if(!context||context.tab==='note')return;
+  const data=topicSnapshot(context);
+  if(!authLoaded)await session();
+  if(reader.open&&context?.topicId===data.topicId)showMenu(data,null);
+ });
  function closeMenu(){if(saving)return;menu.close();selected?.classList.remove('editorial-selected');selected=null;draft=null;setHover(null);}
  function showMenu(data,block){
   draft={...data,requestId:scope.crypto.randomUUID()};selected=block;setHover(null);block?.classList.add('editorial-selected');
-  menu.innerHTML=`<header><h2>Доработать текст</h2><button type="button" data-editorial-close aria-label="Закрыть замечание">×</button></header>
-   <blockquote>${esc(draft.quote)}</blockquote>
-   ${user?`<p>${user.isModerator?'Команда от твоего аккаунта. Автоматический исполнитель ещё не подключён; пока она сохранится в базе.':'Замечание попадёт в базу на рассмотрение модератору.'}</p><div class="editorial-actions"><button data-editorial-action="clarify">Расшифровать</button><button data-editorial-action="rewrite">Переписать по-человечески</button></div>
-   <form><label for="editorial-instruction">Своя инструкция</label><textarea id="editorial-instruction" rows="3" maxlength="3000" placeholder="Например: объясни на примере сотрудников, без сокращений">${esc(data.instruction||'')}</textarea><button class="editorial-primary" type="submit">Отправить инструкцию</button></form>`:
+  const wholeTopic=data.tab==='topic';
+  menu.setAttribute('aria-label',wholeTopic?'Замечание по разделу':'Замечание к тексту');
+  menu.innerHTML=`<header><h2>${wholeTopic?'Замечание по разделу':'Доработать текст'}</h2><button type="button" data-editorial-close aria-label="Закрыть замечание">×</button></header>
+   ${wholeTopic?`<p class="editorial-topic">Раздел: <strong>${esc(draft.quote)}</strong></p>`:`<blockquote>${esc(draft.quote)}</blockquote>`}
+   ${user?`<p>${user.isModerator?'Команда от твоего аккаунта. Автоматический исполнитель ещё не подключён; пока она сохранится в базе.':'Замечание попадёт в базу на рассмотрение модератору.'}</p>${wholeTopic?'':`<div class="editorial-actions"><button data-editorial-action="clarify">Расшифровать</button><button data-editorial-action="rewrite">Переписать по-человечески</button></div>`}
+   <form><label for="editorial-instruction">${wholeTopic?'Что нужно добавить или изменить?':'Своя инструкция'}</label><textarea id="editorial-instruction" rows="${wholeTopic?5:3}" maxlength="3000" placeholder="${wholeTopic?'Например: не хватает графиков. Покажи на схеме, как выбираются ближайшие соседи и как от их числа зависит ответ.':'Например: объясни на примере сотрудников, без сокращений'}">${esc(data.instruction||'')}</textarea><button class="editorial-primary" type="submit">${wholeTopic?'Отправить замечание':'Отправить инструкцию'}</button></form>`:
    `<p>Чтобы оставить замечание, войди в свой аккаунт. Читать материалы можно без входа.</p>${loginHTML()}`}
    <p class="editorial-message" role="status"></p>`;
-  const rect=block?.getBoundingClientRect(),width=Math.min(500,scope.innerWidth-32);
+  const rect=block?.getBoundingClientRect(),width=Math.min(1000,scope.innerWidth-32);
   menu.style.width=width+'px';menu.style.left=Math.max(16,Math.min(rect?.left??(scope.innerWidth-width)/2,scope.innerWidth-width-16))+'px';
   menu.style.top=Math.max(16,Math.min((rect?.top??120)+35,scope.innerHeight-620))+'px';
   if(!menu.open)menu.showModal();
@@ -138,7 +151,7 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
  function queueShell(){
   queue.innerHTML=`<header><div><h2>${user?.isModerator?'Модерация замечаний':'Мои замечания'}</h2><p>${user?esc(user.name)+' · @'+esc(user.login):'Для отправки замечаний нужен вход'}</p></div><button data-queue-close aria-label="Закрыть список замечаний">×</button></header>
    ${user?`<div class="editorial-queue-tools"><label>Показывать <select data-note-filter>${Object.entries({pending:'Новые',accepted:'Принятые',rejected:'Отклонённые',done:'Выполненные',all:'Все'}).map(([key,name])=>`<option value="${key}"${filter===key?' selected':''}>${name}</option>`).join('')}</select></label><button data-queue-refresh>Обновить</button><button data-logout>Выйти</button></div>
-   <p class="editorial-help">Для новой пометки зажми ⌘ и нажми на нужный блок текста. ${user.isModerator?'Замечания читателей проходят твою модерацию. Их одобрение не запускает автоматическую правку.':'Модератор рассмотрит замечание; его решение появится здесь.'}</p><div class="editorial-note-list"></div><button data-load-more hidden>Показать ещё</button>`:
+   <p class="editorial-help">Для пометки к тексту зажми ⌘ и нажми на нужный блок. Для общих пожеланий нажми «Замечание по разделу» в заголовке материала. ${user.isModerator?'Замечания читателей проходят твою модерацию. Их одобрение не запускает автоматическую правку.':'Модератор рассмотрит замечание; его решение появится здесь.'}</p><div class="editorial-note-list"></div><button data-load-more hidden>Показать ещё</button>`:
    `<p>Пометки сохраняются с твоим именем. Другие читатели видят только свои заявки; модератор — все.</p>${loginHTML()}`}
    <p class="editorial-message" role="status"></p>`;
  }
@@ -146,7 +159,7 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
   const list=queue.querySelector('.editorial-note-list');if(!list)return;
   list.innerHTML=notes.length?notes.map(note=>`<article class="editorial-note" data-note-id="${esc(note.id)}"><header><div><strong>${esc(note.topic_title||note.topic_id)}</strong><p>${esc(tabNames[note.tab]||note.tab)}${note.anchor?.section?' · '+esc(note.anchor.section):''}</p></div><span class="editorial-status status-${esc(note.status)}">${esc(statuses[note.status])}</span></header>
    <p class="editorial-author">@${esc(note.login||user.login)} · ${esc(new Date(note.created_at).toLocaleString('ru-RU'))}${note.execution_mode==='owner_request'?' · Команда владельца':''}</p>
-   <blockquote>${esc(note.quote)}</blockquote><p><strong>${esc(labels[note.action])}</strong></p>${note.instruction?`<p class="editorial-instruction">${esc(note.instruction)}</p>`:''}
+   ${note.tab==='topic'?'':`<blockquote>${esc(note.quote)}</blockquote>`}<p><strong>${note.tab==='topic'?'Замечание по разделу':esc(labels[note.action])}</strong></p>${note.instruction?`<p class="editorial-instruction">${esc(note.instruction)}</p>`:''}
    ${note.moderator_note?`<p class="editorial-moderator-comment"><strong>Модератор:</strong> ${esc(note.moderator_note)}</p>`:''}
    ${user.isModerator?`<label>Комментарий к решению<textarea data-moderator-comment rows="2" maxlength="3000">${esc(note.moderator_note)}</textarea></label><div class="editorial-actions">${Object.entries({accepted:'Принять',rejected:'Отклонить',done:'Выполнено',pending:'Вернуть на рассмотрение'}).filter(([key])=>key!==note.status).map(([key,title])=>`<button data-moderate="${key}">${title}</button>`).join('')}</div>`:''}</article>`).join(''):'<p class="editorial-empty">Здесь пока нет замечаний.</p>';
   queue.querySelector('[data-load-more]').hidden=!next;
@@ -207,9 +220,9 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
   if(!user)return;
   try{const saved=JSON.parse(scope.sessionStorage.getItem('atlas-editorial-draft')||'null');if(saved?.quote&&saved?.topicId){scope.sessionStorage.removeItem('atlas-editorial-draft');showMenu(saved,null);}}catch{}
  });
- return {update(value){context=value;setHover(null);}};
+ return {update(value){context=value;setHover(null);if(topicButton)topicButton.hidden=!value||value.tab==='note';}};
 }
-const api={textBlock,snapshot,accountMarkup,create};
+const api={textBlock,snapshot,topicSnapshot,accountMarkup,create};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else{scope.AtlasEditorial=api;scope.ATLAS_EDITORIAL=create();}
 })(typeof window!=='undefined'?window:globalThis);

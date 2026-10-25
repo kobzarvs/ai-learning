@@ -45,7 +45,7 @@ const digest=value=>createHash('sha256').update(value).digest('hex');
 const secret=()=>randomBytes(32).toString('base64url');
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const statuses=['pending','accepted','rejected','done'];
-const tabs=['article','methods','python','rust','mlx','exercise'];
+const tabs=['topic','article','methods','python','rust','mlx','exercise'];
 const responseHeaders={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{...responseHeaders,...headers}});
 const cookie=(name,value,maxAge)=>`${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
@@ -158,7 +158,7 @@ export async function notesResponse(request,connect=database){
    const quote=clean(input.quote,6000),instruction=clean(input.instruction||'',3000),topic=clean(input.topicId,80);
    const anchor=input.anchor;
    if(!uuid.test(input.requestId)||!topic||!/^[a-zA-Z0-9_-]+$/.test(topic)||!tabs.includes(input.tab)||!quote||instruction===null||
-     !['clarify','rewrite','custom'].includes(input.action)||(input.action==='custom'&&!instruction)||
+     !['clarify','rewrite','custom'].includes(input.action)||(input.action==='custom'&&!instruction)||(input.tab==='topic'&&input.action!=='custom')||
      !anchor||typeof anchor!=='object'||Array.isArray(anchor)||!Object.values(anchor).every(v=>typeof v==='string'&&v.length<=300)||Object.keys(anchor).some(k=>!['methodId','panel','section','block'].includes(k))||
      !/^\d{1,18}$/.test(String(input.contentRevision||'0')))return json({error:'Проверь текст и инструкцию.'},400);
    const [existing]=await sql.query('SELECT * FROM atlas_editorial_notes WHERE user_id=$1 AND request_id=$2',[user.id,input.requestId]);

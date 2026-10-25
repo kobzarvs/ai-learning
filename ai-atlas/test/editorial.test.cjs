@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
-const {textBlock,snapshot,accountMarkup}=require('../editorial.js');
+const {textBlock,snapshot,topicSnapshot,accountMarkup}=require('../editorial.js');
 const origin='https://ai-atlas-plum.vercel.app';
 const token='a'.repeat(43),requestId='11111111-1111-4111-8111-111111111111';
 const noteId='22222222-2222-4222-8222-222222222222';
@@ -76,6 +76,27 @@ test('retrying a request returns the existing note without consuming quota or du
  const sql=database(visitor,statement=>statement.startsWith('SELECT * FROM atlas_editorial_notes')?[note]:[]);
  const result=await notesResponse(request('POST',valid),async()=>sql);assert.equal(result.status,200);
  assert.deepEqual((await result.json()).note,note);assert.equal(sql.calls.length,2);
+});
+
+test('whole-topic feedback keeps its topic and revision and uses the same authenticated moderation flow',async()=>{
+ const {notesResponse}=await endpoints;
+ const context=topicSnapshot({topicId:'knn',title:'kNN — ближайшие соседи',tab:'python',revision:'42'});
+ assert.equal(context.tab,'topic');assert.equal(context.contentRevision,'42');assert.equal(context.anchor.block,'');
+ for(const user of [visitor,owner]){
+  const sql=database(user,(statement,params)=>{
+   if(statement.startsWith('SELECT id FROM atlas_content'))return[{id:'knn'}];
+   if(statement.includes('INSERT INTO atlas_editorial_limits'))return[{requests:1}];
+   if(statement.includes('INSERT INTO atlas_editorial_notes'))return[{topic_id:params[3],tab:params[4],anchor:JSON.parse(params[5]),quote:params[6],instruction:params[9],execution_mode:params[10]}];
+   return[];
+  });
+  const payload={...context,requestId,action:'custom',instruction:'Добавить график выбора ближайших соседей.'};
+  const result=await notesResponse(request('POST',payload),async()=>sql);
+  assert.equal(result.status,201);const {note}=await result.json();
+  assert.equal(note.topic_id,'knn');assert.equal(note.tab,'topic');assert.equal(note.quote,'kNN — ближайшие соседи');
+  assert.equal(note.instruction,payload.instruction);assert.equal(note.execution_mode,user===owner?'owner_request':'manual');
+  assert.equal((await notesResponse(request('POST',payload,'',false),async()=>sql)).status,401);
+  assert.equal((await notesResponse(request('POST',{...payload,action:'rewrite'}),async()=>sql)).status,400);
+ }
 });
 
 test('invalid, oversized and missing-topic submissions do not create a note',async()=>{
