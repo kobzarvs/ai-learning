@@ -142,6 +142,7 @@ function create(o){
   $('reader').classList.toggle('reader-code',codeMode);
   $('reader').classList.toggle('reader-wide',codeMode||(n.id==='causal'&&['exercise','methods'].includes(mode)));
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
+  scope.ATLAS_EDITORIAL?.update({topicId:n.id,tab:mode,revision:presentation.revision||'0'});
   scope.ATLAS_CONTENT_CLIENT?.refresh();
  }
  function refreshLaunch(){

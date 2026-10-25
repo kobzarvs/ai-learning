@@ -43,7 +43,7 @@ function apply(records,{data,index,lessons,presentation}){
   const originals=new Map();
   (function visit(n){originals.set(n.id,n);for(const child of n.children||[])visit(child);})(data.root);
   const replace=(target,source)=>{for(const key of Object.keys(target))delete target[key];for(const [key,value] of Object.entries(source))if(!['__proto__','constructor','prototype'].includes(key))target[key]=value;};
-  for(const {id,payload} of records){
+  for(const {id,payload,revision} of records){
     if(id==='_catalog'){
       for(const key of ['sources','glossary'])if(object(payload[key]))replace(data[key],payload[key]);
       if(object(payload.meta))replace(lessons.meta,payload.meta);
@@ -56,7 +56,7 @@ function apply(records,{data,index,lessons,presentation}){
     }
     if(object(payload.lesson))lessons.topics[id]=payload.lesson;
     else if(payload.lesson===null)delete lessons.topics[id];
-    presentation[id]={layout:object(payload.layout)?payload.layout:{},sections:object(payload.sections)?payload.sections:{}};
+    presentation[id]={layout:object(payload.layout)?payload.layout:{},sections:object(payload.sections)?payload.sections:{},revision:String(revision||'0')};
   }
 }
 

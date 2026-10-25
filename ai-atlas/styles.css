@@ -180,3 +180,39 @@
 .reading-sources .source-group ul{list-style:none;margin:0;padding:0}
 .reading-sources .source-group li{margin:0}
 .reading-sources .source-group a{line-height:1.5;margin:8px 0}
+
+/* Editorial notes select existing text without changing its layout. */
+.editorial-hover{outline:2px solid #548572!important;outline-offset:5px;border-radius:4px;box-shadow:0 0 0 7px #54857215,0 3px 16px #355f5633;cursor:context-menu}
+.editorial-selected{outline:2px solid #548572;outline-offset:5px;border-radius:4px;background:#eef5ed}
+.editorial-entry{font:500 20px/1.3 var(--font-ui);padding:9px 14px;border:1px solid #c9d7c5;border-radius:8px;background:#f0f4ec;color:#354b2e;white-space:nowrap}
+.editorial-reader-entry{margin-left:auto}
+.editorial-menu,.editorial-queue{box-sizing:border-box;color:#34472f;border:1px solid #ccd8c5;border-radius:14px;background:#fcfdf9;padding:24px;box-shadow:0 18px 64px #182c3440;font:20px/1.6 var(--font-ui)}
+.editorial-menu{position:fixed;margin:0;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto}
+.editorial-menu::backdrop{background:#24332612}
+.editorial-queue{width:min(1100px,calc(100vw - 40px));max-width:none;max-height:calc(100vh - 40px);overflow:auto}
+.editorial-queue::backdrop{background:#1e2b2444;backdrop-filter:blur(3px)}
+.editorial-menu header,.editorial-queue>header,.editorial-note>header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.editorial-menu h2,.editorial-queue h2{margin:0;font-size:26px;line-height:1.3}
+.editorial-menu header button,.editorial-queue>header button{border:0;background:none;font-size:28px;line-height:1;padding:5px 9px}
+.editorial-menu p,.editorial-queue p{margin:10px 0}
+.editorial-menu blockquote,.editorial-note blockquote{margin:18px 0;padding:12px 18px;border-left:3px solid #c1a36e;background:#f4f0e7;white-space:pre-wrap;overflow-wrap:anywhere}
+.editorial-menu blockquote{max-height:180px;overflow:auto}
+.editorial-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.editorial-actions button,.editorial-queue-tools button,.editorial-queue [data-load-more]{border:1px solid #c2d0be;background:#f0f4ed;color:#344c2e;border-radius:7px;padding:9px 13px;font:inherit;cursor:pointer}
+.editorial-menu button:disabled,.editorial-queue button:disabled{opacity:.55;cursor:wait}
+.editorial-menu label,.editorial-note label{display:block;margin-top:16px;font-weight:600}
+.editorial-menu textarea,.editorial-note textarea{box-sizing:border-box;display:block;width:100%;padding:10px 12px;border:1px solid #bdcbbb;border-radius:7px;background:#fff;color:#293b26;font:400 20px/1.5 var(--font-ui);resize:vertical;margin:6px 0 12px}
+.editorial-primary{display:inline-block;background:#356957;color:#fff;border:0;border-radius:7px;padding:10px 16px;font:500 20px/1.4 var(--font-ui);text-decoration:none;cursor:pointer}
+.editorial-message{color:#9a412c;white-space:pre-wrap}
+.editorial-message:empty{display:none}
+.editorial-queue-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:20px 0}
+.editorial-queue-tools select{font:inherit;padding:7px;border:1px solid #bdcbbb;border-radius:7px;background:#fff;color:inherit}
+.editorial-help,.editorial-author{color:#687762}
+.editorial-note-list{display:grid;gap:22px}
+.editorial-note{padding:22px;border:1px solid #d3dccd;border-radius:10px;background:#fff}
+.editorial-note>header p{margin:4px 0}
+.editorial-status{padding:3px 10px;border-radius:6px;background:#f4ecda;white-space:nowrap}
+.status-accepted{background:#e6f1e3}.status-rejected{background:#f7e9e4}.status-done{background:#e7edf7}
+.editorial-instruction,.editorial-moderator-comment{white-space:pre-wrap;overflow-wrap:anywhere}
+.editorial-toast{position:fixed;z-index:10000;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 40px);padding:14px 20px;border:1px solid #8baa88;border-radius:10px;background:#eff8e9;color:#2f502b;font:20px/1.5 var(--font-ui);box-shadow:0 8px 30px #1e382a24}
+@media(max-width:760px){.editorial-entry{font-size:20px;padding:8px}.editorial-menu,.editorial-queue{padding:18px}.editorial-note{padding:16px}.editorial-note>header{flex-direction:column}.reader-header{flex-wrap:wrap}.editorial-reader-entry{margin-left:0}}
