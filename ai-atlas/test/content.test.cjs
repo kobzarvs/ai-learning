@@ -56,3 +56,22 @@ test('migration covers every current topic and framework without replacing exist
  assert.doesNotMatch(statements.at(-1).statement,/DO UPDATE/);
  assert.equal(JSON.parse(statements.at(-1).params[0]).length,records.length);
 });
+
+test('sources group project documentation and GitHub together without losing distinct publications',()=>{
+ const sources=[
+  ['EconML: дважды устойчивая оценка','https://github.com/py-why/EconML/blob/main/doc/spec/estimation/dr.rst'],
+  ['EconML: S-, T- и X-оцениватели','https://www.pywhy.org/EconML/spec/estimation/metalearners.html'],
+  ['Повтор той же ссылки','https://www.pywhy.org/EconML/spec/estimation/metalearners.html'],
+  ['PyTorch: обучение','https://docs.pytorch.org/tutorials/'],
+  ['PyTorch: релиз','https://github.com/pytorch/pytorch/releases/latest'],
+  ['Pearl: книга','https://ftp.cs.ucla.edu/pub/stat_ser/r481.pdf'],
+  ['Статья','https://arxiv.org/abs/1803.09015'],
+  ['Недопустимая ссылка','javascript:alert(1)']
+ ];
+ const groups=content.groupSources(sources);
+ assert.deepEqual(groups.map(g=>g.title),['PyTorch','EconML','Книги и научные публикации']);
+ assert.deepEqual(groups.map(g=>g.links.length),[2,2,2]);
+ assert.equal(groups[1].links[0][0],'Дважды устойчивая оценка');
+ assert.equal(groups[2].links[0][0],'Pearl: книга');
+ assert.deepEqual(new Set(groups.flatMap(g=>g.links.map(([,url])=>url))),new Set(sources.slice(0,-1).map(([,url])=>url)));
+});

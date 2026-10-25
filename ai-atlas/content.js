@@ -4,6 +4,39 @@ const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const bounded=(value,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):null;
 
+function groupSources(sources){
+  // A project's documentation and GitHub repository belong to the same group.
+  const families=[
+    ['PyTorch',/^https?:\/\/(?:(?:docs\.)?pytorch\.org\/|github\.com\/pytorch\/)/i],
+    ['EconML',/^https?:\/\/(?:www\.pywhy\.org\/EconML\/|github\.com\/py-why\/EconML\/)/i],
+    ['DoWhy',/^https?:\/\/(?:www\.pywhy\.org\/dowhy\/|github\.com\/py-why\/dowhy\/)/i],
+    ['causal-learn',/^https?:\/\/(?:causal-learn\.readthedocs\.io\/|github\.com\/py-why\/causal-learn\/)/i],
+    ['scikit-learn',/^https?:\/\/(?:scikit-learn\.org\/|github\.com\/scikit-learn\/)/i],
+    ['MLX',/^https?:\/\/(?:ml-explore\.github\.io\/|github\.com\/ml-explore\/)/i],
+    ['Burn',/^https?:\/\/(?:burn\.dev\/|docs\.rs\/burn(?:\/|$)|github\.com\/tracel-ai\/burn\/)/i],
+    ['Hugging Face',/^https?:\/\/huggingface\.co\//i],
+    ['Tigramite',/^https?:\/\/github\.com\/jakobrunge\/tigramite(?:\/|$)/i],
+    ['CausalImpact',/^https?:\/\/github\.com\/google\/CausalImpact(?:\/|$)/i],
+    ['Microsoft Research',/^https?:\/\/www\.microsoft\.com\/en-us\/research\//i],
+    ['Apple',/^https?:\/\/developer\.apple\.com\//i],
+    ['Книги и научные публикации',/^https?:\/\/(?:arxiv\.org|www\.nber\.org|pubmed\.ncbi\.nlm\.nih\.gov|dspace\.mit\.edu|miguelhernan\.org|ftp\.cs\.ucla\.edu)\//i]
+  ];
+  const groups=new Map(),seen=new Set();
+  for(const entry of sources){
+    if(!Array.isArray(entry))continue;
+    const [label,url]=entry;
+    if(typeof label!=='string'||typeof url!=='string'||!/^https?:\/\//i.test(url)||seen.has(url))continue;
+    seen.add(url);
+    const group=families.find(([,pattern])=>pattern.test(url))?.[0]||'Другие материалы';
+    const prefix=group+':';
+    let title=label.toLocaleLowerCase('ru').startsWith(prefix.toLocaleLowerCase('ru'))?label.slice(prefix.length).trim():label;
+    title=title?title[0].toLocaleUpperCase('ru')+title.slice(1):label;
+    if(!groups.has(group))groups.set(group,[]);
+    groups.get(group).push([title,url]);
+  }
+  return [...families.map(([title])=>title),'Другие материалы'].filter(title=>groups.has(title)).map(title=>({title,links:groups.get(title)}));
+}
+
 function apply(records,{data,index,lessons,presentation}){
   if(!Array.isArray(records)||records.some(r=>!object(r)||typeof r.id!=='string'||!object(r.payload)))throw Error('Invalid content records');
   const originals=new Map();
@@ -101,6 +134,6 @@ function start(options){
   refresh();return client;
 }
 
-const api={apply,renderSections,layoutValues,createClient,start};
+const api={apply,groupSources,renderSections,layoutValues,createClient,start};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.AtlasContent=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -134,10 +134,9 @@ function create(o){
    $('reader').style.setProperty(property,layout[key]?String(layout[key])+(key==='chartsColumns'?'':'px'):'');
   }
   if(card.type!=='note'&&mode==='article'){
-   const seen=new Set();
-   const sources=[...(n.sources||[]).map(k=>o.sources[k]).filter(Boolean),...(l?.sources||[]),...Object.values(l?.guide?.sources||{})]
-    .filter(([,url])=>!seen.has(url)&&(seen.add(url),true));
-   html+=`<section class="reading-section reading-sources">${sectionHeading('Первоисточники')}${sources.map(([name,url])=>/^https?:\/\//.test(url)?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} ↗</a>`:'').join('')}</section>`;
+   const sources=[...(n.sources||[]).map(k=>o.sources[k]).filter(Boolean),...(l?.sources||[]),...Object.values(l?.guide?.sources||{})];
+   const groups=scope.AtlasContent.groupSources(sources);
+   html+=`<section class="reading-section reading-sources">${sectionHeading('Первоисточники')}<div class="source-groups">${groups.map(group=>`<details class="source-group"><summary><strong>${esc(group.title)}</strong><span>Ссылок: ${group.links.length}</span></summary><ul>${group.links.map(([name,url])=>`<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} ↗</a></li>`).join('')}</ul></details>`).join('')}</div></section>`;
   }
   const codeMode=['python','rust','mlx'].includes(mode);
   $('reader').classList.toggle('reader-code',codeMode);
