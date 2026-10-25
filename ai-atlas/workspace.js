@@ -149,11 +149,14 @@ function create(o){
   const content=$('reader-content'),scroll=content.scrollTop,charts=content.querySelector('.lesson-charts'),horizontal=charts?.scrollLeft||0;
   const codeScroll=[...content.querySelectorAll('pre')].map(el=>({left:el.scrollLeft,top:el.scrollTop}));
   const openDetails=[...content.querySelectorAll('details')].map(el=>el.open);
-  const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
-  read(readerCard,$('reader').dataset.tab);content.scrollTop=scroll;
+  const guideView=content.querySelector('.causal-guide')?.dataset.guideCurrent;
+  const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice','guideView'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
+  read(readerCard,$('reader').dataset.tab);
+  if(guideView!==undefined)scope.AtlasLessonGuide.selectView(content,guideView);
   const updated=content.querySelector('.lesson-charts');if(updated)updated.scrollLeft=horizontal;
   [...content.querySelectorAll('pre')].forEach((el,i)=>{if(codeScroll[i]){el.scrollLeft=codeScroll[i].left;el.scrollTop=codeScroll[i].top;}});
-  [...content.querySelectorAll('details')].forEach((el,i)=>{if(openDetails[i])el.open=true;});
+  [...content.querySelectorAll('details')].forEach((el,i)=>{if(i<openDetails.length)el.open=openDetails[i];});
+  content.scrollTop=scroll;
   if(focusKey)[...content.querySelectorAll('button')].find(button=>button.dataset[focusKey]===focusValue)?.focus({preventScroll:true});
  }
  function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
@@ -199,7 +202,8 @@ function create(o){
   if(b.dataset.selectGroup){selectedGroup=b.dataset.selectGroup;selection.clear();redrawSelection();}
   if(b.dataset.groupMenu)editor('group',b.dataset.groupMenu);
   if(b.dataset.editNote)editor('note',b.dataset.editNote);
-  if(b.dataset.guideJump&&readerCard){const target=$(b.dataset.guideJump);if(target?.classList.contains('guide-method'))target.open=true;target?.scrollIntoView?.({block:'start'});}
+  if(b.dataset.guideView!==undefined&&readerCard)scope.AtlasLessonGuide.selectView($('reader-content'),b.dataset.guideView);
+  if(b.dataset.guideJump&&readerCard)scope.AtlasLessonGuide.jump($('reader-content'),b.dataset.guideJump);
   if(b.dataset.readerTab&&readerCard)read(readerCard,b.dataset.readerTab);
   if(readerCard?.ref==='causal'&&$('reader').dataset.tab==='exercise'){
    if(b.dataset.causalSaving!==undefined&&[0,4,8].includes(Number(b.dataset.causalSaving))){causalExperiment.minutesSaved=Number(b.dataset.causalSaving);refreshLaunch();}

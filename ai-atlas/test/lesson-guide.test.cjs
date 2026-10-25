@@ -33,3 +33,64 @@ test('causal article, Python and charts use the employee task story and distingu
  assert.match(guide.cases.find(item=>item.methods.includes('longitudinal')).kind,/не отчёт/);
  assert.equal(C.indexTree(data.root).get('classification').name,'Классификация и регрессия');
 });
+
+// Exercise navigation between hidden chapters, including direct links from cases.
+function guideDOM(){
+ const keys=[...guide.groups.map((_,i)=>String(i)),'cases','basics'];
+ const panels=keys.map(key=>({dataset:{guidePanel:key},hidden:key!=='0'}));
+ const buttons=keys.map(key=>({dataset:{guideView:key},attrs:{},setAttribute(k,v){this.attrs[k]=v;}}));
+ const methods=guide.groups.flatMap((group,i)=>group.methods.map(method=>({
+  id:'causal-method-'+method.id,open:false,
+  closest:()=>panels[i],
+  querySelector(){return{focus:options=>{this.focusOptions=options;}};},
+  scrollIntoView(options){this.scrollOptions=options;}
+ })));
+ const root={dataset:{guideCurrent:'0'},querySelectorAll:selector=>selector==='[data-guide-panel]'?panels:buttons};
+ const container={scrollTop:230,querySelector:()=>root,querySelectorAll:()=>methods};
+ return{root,container,panels,buttons,methods};
+}
+
+test('situation navigation shows one chapter without resetting scroll or closing other methods',()=>{
+ const dom=guideDOM();dom.methods[0].open=true;
+ for(const key of [...guide.groups.map((_,i)=>String(i)),'cases','basics']){
+  assert.equal(G.selectView(dom.container,key),true);
+  assert.deepEqual(dom.panels.filter(p=>!p.hidden).map(p=>p.dataset.guidePanel),[key]);
+  assert.deepEqual(dom.buttons.filter(b=>b.attrs['aria-pressed']==='true').map(b=>b.dataset.guideView),[key]);
+  assert.equal(dom.root.dataset.guideCurrent,key);
+  assert.equal(dom.container.scrollTop,230);
+  assert.equal(dom.methods[0].open,true);
+ }
+ assert.equal(G.selectView(dom.container,'missing'),false);
+ assert.equal(dom.root.dataset.guideCurrent,'basics');
+});
+
+test('every case-to-method link reveals its chapter and focuses the expanded method',()=>{
+ const dom=guideDOM();
+ for(const item of guide.cases)for(const id of item.methods){
+  G.selectView(dom.container,'cases');
+  assert.equal(G.jump(dom.container,'causal-method-'+id),true);
+  const method=dom.methods.find(m=>m.id==='causal-method-'+id);
+  assert.equal(method.open,true);
+  assert.equal(method.closest().hidden,false);
+  assert.deepEqual(method.focusOptions,{preventScroll:true});
+  assert.deepEqual(method.scrollOptions,{block:'start'});
+ }
+ assert.equal(G.jump(dom.container,'missing'),false);
+});
+
+test('redesign retains every method, keeps one initial chapter and escapes editable content',()=>{
+ const html=G.render(guide);
+ const panels=[...html.matchAll(/<section class="guide-panel"[^>]+>/g)].map(m=>m[0]);
+ assert.equal(panels.length,guide.groups.length+2);
+ assert.equal(panels.filter(tag=>!tag.includes(' hidden')).length,1);
+ for(const group of guide.groups)for(const method of group.methods){
+  assert.equal(html.split('id="causal-method-'+method.id+'"').length-1,1);
+ }
+ const altered=structuredClone(guide);
+ altered.groups[0].situation='<img src=x onerror=alert(1)>';
+ altered.groups[0].methods[0].example='<script>bad()</script>';
+ altered.sources.book=['unsafe','javascript:alert(1)'];
+ const safe=G.render(altered);
+ assert.doesNotMatch(safe,/<script>|<img|href="javascript:/);
+ assert.match(safe,/&lt;script&gt;/);
+});
