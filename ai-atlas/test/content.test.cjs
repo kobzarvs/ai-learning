@@ -66,12 +66,13 @@ test('sources group project documentation and GitHub together without losing dis
   ['PyTorch: релиз','https://github.com/pytorch/pytorch/releases/latest'],
   ['Pearl: книга','https://ftp.cs.ucla.edu/pub/stat_ser/r481.pdf'],
   ['Статья','https://arxiv.org/abs/1803.09015'],
+  ['Другой материал','https://example.org/reference'],
   ['Недопустимая ссылка','javascript:alert(1)']
  ];
  const groups=content.groupSources(sources);
- assert.deepEqual(groups.map(g=>g.title),['PyTorch','EconML','Книги и научные публикации']);
- assert.deepEqual(groups.map(g=>g.links.length),[2,2,2]);
+ assert.deepEqual(groups.map(g=>g.title),['PyTorch','EconML','Другие материалы','Книги и научные публикации']);
+ assert.deepEqual(groups.map(g=>g.links.length),[2,2,1,2]);
  assert.equal(groups[1].links[0][0],'Дважды устойчивая оценка');
- assert.equal(groups[2].links[0][0],'Pearl: книга');
+ assert.equal(groups.at(-1).links[0][0],'Pearl: книга');
  assert.deepEqual(new Set(groups.flatMap(g=>g.links.map(([,url])=>url))),new Set(sources.slice(0,-1).map(([,url])=>url)));
 });

@@ -34,7 +34,8 @@ function groupSources(sources){
     if(!groups.has(group))groups.set(group,[]);
     groups.get(group).push([title,url]);
   }
-  return [...families.map(([title])=>title),'Другие материалы'].filter(title=>groups.has(title)).map(title=>({title,links:groups.get(title)}));
+  const order=[...families.slice(0,-1).map(([title])=>title),'Другие материалы',families.at(-1)[0]];
+  return order.filter(title=>groups.has(title)).map(title=>({title,links:groups.get(title)}));
 }
 
 function apply(records,{data,index,lessons,presentation}){
