@@ -1,6 +1,7 @@
 (function(scope){
 'use strict';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const paragraphs=value=>String(value??'').split(/\n\s*\n/).map(text=>`<p>${esc(text)}</p>`).join('');
 // The navigation describes situations; full method names remain in the panels.
 const situations={
  random:'Могу провести эксперимент',
@@ -26,8 +27,8 @@ function render(guide){
    const cases=guide.cases.filter(item=>item.methods.includes(method.id));
    return `<details class="guide-method" id="causal-method-${esc(method.id)}"${index===0&&methodIndex===0?' open':''}>
     <summary><span class="guide-method-number" aria-hidden="true">${String(methodIndex+1).padStart(2,'0')}</span><span class="guide-method-heading"><strong>${esc(method.title)}</strong><span>${esc(method.meaning)}</span></span><span class="guide-disclosure" aria-hidden="true">+</span></summary>
-    <div class="guide-method-body"><section class="guide-example"><h3>Пример задачи</h3><p>${esc(method.example)}</p></section>
-     <div class="guide-requirements"><section><h3>Какие данные собрать</h3><p>${esc(method.data)}</p></section><section class="guide-assumptions"><h3>Когда сравнению можно доверять</h3><p>${esc(method.assumptions)}</p></section></div>
+    <div class="guide-method-body"><section class="guide-example"><h3>Пример задачи</h3>${paragraphs(method.example)}</section>
+     <div class="guide-requirements"><section><h3>Какие данные собрать</h3>${paragraphs(method.data)}</section><section class="guide-assumptions"><h3>Что может исказить результат</h3>${paragraphs(method.assumptions)}</section></div>
      ${cases.length?`<section class="guide-linked-cases"><h3>Разборы с этим методом</h3>${cases.map(item=>caseCard(item)).join('')}</section>`:''}
     </div></details>`;
   }).join('')}</div></section>`).join('');
