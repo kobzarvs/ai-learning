@@ -184,8 +184,6 @@
 /* Editorial notes select existing text without changing its layout. */
 .editorial-hover{outline:2px solid #548572!important;outline-offset:5px;border-radius:4px;box-shadow:0 0 0 7px #54857215,0 3px 16px #355f5633;cursor:context-menu}
 .editorial-selected{outline:2px solid #548572;outline-offset:5px;border-radius:4px;background:#eef5ed}
-.editorial-entry{font:500 20px/1.3 var(--font-ui);padding:9px 14px;border:1px solid #c9d7c5;border-radius:8px;background:#f0f4ec;color:#354b2e;white-space:nowrap}
-.editorial-reader-entry{margin-left:auto}
 .editorial-menu,.editorial-queue{box-sizing:border-box;color:#34472f;border:1px solid #ccd8c5;border-radius:14px;background:#fcfdf9;padding:24px;box-shadow:0 18px 64px #182c3440;font:20px/1.6 var(--font-ui)}
 .editorial-menu{position:fixed;margin:0;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto}
 .editorial-menu::backdrop{background:#24332612}
@@ -215,4 +213,25 @@
 .status-accepted{background:#e6f1e3}.status-rejected{background:#f7e9e4}.status-done{background:#e7edf7}
 .editorial-instruction,.editorial-moderator-comment{white-space:pre-wrap;overflow-wrap:anywhere}
 .editorial-toast{position:fixed;z-index:10000;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 40px);padding:14px 20px;border:1px solid #8baa88;border-radius:10px;background:#eff8e9;color:#2f502b;font:20px/1.5 var(--font-ui);box-shadow:0 8px 30px #1e382a24}
-@media(max-width:760px){.editorial-entry{font-size:20px;padding:8px}.editorial-menu,.editorial-queue{padding:18px}.editorial-note{padding:16px}.editorial-note>header{flex-direction:column}.reader-header{flex-wrap:wrap}.editorial-reader-entry{margin-left:0}}
+@media(max-width:760px){.editorial-menu,.editorial-queue{padding:18px}.editorial-note{padding:16px}.editorial-note>header{flex-direction:column}.reader-header{flex-wrap:wrap}}
+
+.atlas-account{flex-shrink:0;position:relative}
+.reader-account{margin-left:auto}
+.account-login,.account-trigger{display:flex;align-items:center;justify-content:center;gap:10px;min-height:44px;border:1px solid #cbd8c4;border-radius:8px;background:#f4f7f0;color:#354b2e;font:500 20px/1.3 var(--font-ui);white-space:nowrap}
+.account-login{padding:10px 18px}.account-trigger{padding:4px 10px 4px 5px}
+.account-login:hover,.account-trigger:hover{background:#eaf1e5}
+.account-name{max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.account-chevron{color:#76866d;margin-left:2px}
+.account-avatar{display:grid;place-items:center;position:relative;width:36px;height:36px;flex:0 0 36px;overflow:hidden;border-radius:50%;background:#dce8d4;color:#395e3b}
+.account-avatar>span{position:absolute;inset:0;display:grid;place-items:center;font-size:20px}
+.account-avatar img{display:block;position:relative;width:100%;height:100%;object-fit:cover}
+.account-menu{position:fixed;inset:auto;margin:0;padding:8px;border:1px solid #cbd8c4;border-radius:12px;background:#fcfdf9;color:#354b2e;box-shadow:0 12px 36px #20391f26;font:400 20px/1.5 var(--font-ui);max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto}
+.account-menu::backdrop{background:transparent;backdrop-filter:none}
+.account-identity{padding:12px 14px 15px;margin-bottom:5px;border-bottom:1px solid #e1e8db;overflow-wrap:anywhere}
+.account-identity strong,.account-identity span{display:block}.account-identity span{color:#78856f}
+.account-menu>button{display:block;width:100%;padding:12px 14px;border-radius:7px;text-align:left;font:inherit}
+.account-menu>button:hover{background:#edf3e7}
+.account-menu [data-account-logout]{color:#8b4938}
+.account-error{margin:8px 14px;color:#9a412c;white-space:pre-wrap}.account-error:empty{display:none}
+@media(max-width:1100px){.account-name{max-width:150px}}
+@media(max-width:760px){.topbar{padding-inline:10px;gap:8px}.topbar .divider{display:none}.header-right .search-box{width:clamp(100px,23vw,155px);min-width:0;flex:1}.header-right .route-label,.header-right .route-button b{display:none}.account-name,.account-chevron{display:none}.account-trigger{padding:4px}.account-login{padding:10px 12px}.reader-account{margin-left:auto}.reader-header strong{flex:1}}

@@ -23,6 +23,19 @@ function snapshot(block,content,context){
    block:String([...content.querySelectorAll(blockSelector)].indexOf(block))}};
 }
 
+function accountMarkup(user,id,loading=false){
+ if(!user)return `<button class="account-login" data-account-login${loading?' disabled aria-busy="true"':''}>Войти</button>`;
+ const name=user.name||user.login,initials=name.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+ const avatar=/^\d+$/.test(String(user.id))?`<img src="https://avatars.githubusercontent.com/u/${user.id}?s=80" alt="" width="36" height="36" referrerpolicy="no-referrer">`:'';
+ return `<button class="account-trigger" popovertarget="${id}" aria-controls="${id}" aria-expanded="false" aria-label="Аккаунт: ${esc(name)}" title="${esc(name)} · @${esc(user.login)}">
+  <span class="account-avatar" aria-hidden="true"><span>${esc(initials)}</span>${avatar}</span><span class="account-name">${esc(name)}</span><span class="account-chevron" aria-hidden="true">⌄</span></button>
+  <div id="${id}" class="account-menu" popover="auto" aria-label="Меню пользователя">
+   <div class="account-identity"><strong>${esc(name)}</strong><span>@${esc(user.login)}</span></div>
+   <button data-account-notes>${user.isModerator?'Модерация замечаний':'Мои замечания'}</button>
+   <button data-account-logout>Выйти</button><p class="account-error" role="status"></p>
+  </div>`;
+}
+
 function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scope)}={}){
  const reader=doc.getElementById('reader'),content=doc.getElementById('reader-content');
  if(!reader||!content)return null;
@@ -30,8 +43,9 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
  let filter='pending',notes=[],next=null,loading=false,queueGeneration=0;
  const menu=doc.createElement('dialog');menu.className='editorial-menu';menu.setAttribute('aria-label','Замечание к тексту');doc.body.append(menu);
  const queue=doc.createElement('dialog');queue.className='editorial-queue';queue.setAttribute('aria-label','Замечания к материалам');doc.body.append(queue);
- const top=doc.createElement('button');top.className='editorial-entry';top.textContent='Замечания';top.title='Замечания к текстам и модерация';doc.querySelector('.header-right')?.append(top);
- const entry=doc.createElement('button');entry.className='editorial-entry editorial-reader-entry';entry.textContent='Замечания';entry.title='⌘ + клик по тексту — оставить замечание';reader.querySelector('header')?.append(entry);
+ const accounts=[doc.querySelector('.header-right'),reader.querySelector('header')].filter(Boolean).map((parent,index)=>{
+  const element=doc.createElement('div');element.className='atlas-account'+(index?' reader-account':'');parent.append(element);return element;
+ });
  const status=doc.createElement('div');status.className='editorial-toast';status.setAttribute('role','status');status.hidden=true;doc.body.append(status);
  const announce=text=>{(reader.open?reader:doc.body).append(status);status.textContent=text;status.hidden=false;setTimeout(()=>{status.hidden=true;},5000);};
  const setHover=block=>{if(hover===block)return;hover?.classList.remove('editorial-hover');hover=block;hover?.classList.add('editorial-hover');};
@@ -46,9 +60,45 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
  async function session(){
   try{const data=await api('/api/auth');user=data.user;configured=data.configured;}
   catch{user=null;configured=false;}
-  authLoaded=true;top.textContent=user?.isModerator?'Модерация':user?'Мои замечания':'Войти / замечания';
-  entry.textContent=user?.isModerator?'Модерация':'Замечания';
+  authLoaded=true;renderAccounts();
  }
+ function renderAccounts(){
+  accounts.forEach((element,index)=>{
+   element.innerHTML=accountMarkup(user,'atlas-account-menu-'+index,!authLoaded);
+   const popup=element.querySelector('[popover]'),trigger=element.querySelector('.account-trigger');
+   element.querySelector('img')?.addEventListener('error',event=>{event.target.hidden=true;},{once:true});
+   popup?.addEventListener('beforetoggle',event=>{
+    trigger.setAttribute('aria-expanded',String(event.newState==='open'));
+    if(event.newState!=='open')return;
+    const rect=trigger.getBoundingClientRect(),width=Math.min(320,scope.innerWidth-24);
+    popup.style.width=width+'px';popup.style.left=Math.max(12,Math.min(rect.right-width,scope.innerWidth-width-12))+'px';
+    popup.style.top=Math.max(12,Math.min(rect.bottom+8,scope.innerHeight-280))+'px';
+   });
+  });
+ }
+ async function logout(){
+  await api('/api/auth',{method:'POST'});
+  user=null;notes=[];next=null;queueGeneration++;loading=false;renderAccounts();
+  if(queue.open)queueShell();
+ }
+ accounts.forEach(element=>{
+ element.addEventListener('keydown',event=>{if(event.key==='Escape'&&element.querySelector(':popover-open'))event.stopPropagation();});
+ element.addEventListener('click',async event=>{
+  const button=event.target.closest('button');if(!button)return;
+  if(button.hasAttribute('data-account-login')){
+   button.disabled=true;if(!authLoaded||!configured)await session();
+   if(configured){remember();scope.location.assign(loginURL());}
+   else{button.disabled=false;announce('Вход сейчас недоступен. Попробуй обновить страницу.');}return;
+  }
+  if(button.hasAttribute('data-account-notes')){element.querySelector('[popover]').hidePopover();await openQueue();return;}
+  if(button.hasAttribute('data-account-logout')){
+   button.disabled=true;
+   try{await logout();element.querySelector('[data-account-login]')?.focus();announce('Ты вышел из аккаунта.');}
+   catch(error){element.querySelector('.account-error').textContent=error.message;button.disabled=false;}
+  }
+ });
+ });
+ renderAccounts();
  function closeMenu(){if(saving)return;menu.close();selected?.classList.remove('editorial-selected');selected=null;draft=null;setHover(null);}
  function showMenu(data,block){
   draft={...data,requestId:scope.crypto.randomUUID()};selected=block;setHover(null);block?.classList.add('editorial-selected');
@@ -115,7 +165,6 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
   setHover(null);if(!authLoaded)await session();filter=user?.isModerator?'pending':'all';queueShell();
   if(!queue.open)queue.showModal();await loadNotes();
  }
- top.onclick=entry.onclick=openQueue;
  queue.addEventListener('cancel',event=>{event.stopPropagation();});
  queue.addEventListener('change',event=>{if(event.target.matches('[data-note-filter]')){filter=event.target.value;loadNotes();}});
  queue.addEventListener('click',async event=>{
@@ -124,7 +173,8 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
   if(button.hasAttribute('data-queue-refresh')){loadNotes();return;}
   if(button.hasAttribute('data-load-more')){if(!loading)loadNotes(true);return;}
   if(button.hasAttribute('data-logout')){
-   try{await api('/api/auth',{method:'POST'});user=null;await session();queueShell();}catch(error){queue.querySelector('.editorial-message').textContent=error.message;}return;
+   button.disabled=true;
+   try{await logout();}catch(error){queue.querySelector('.editorial-message').textContent=error.message;button.disabled=false;}return;
   }
   if(button.dataset.moderate){
    const card=button.closest('[data-note-id]'),note=notes.find(n=>n.id===card.dataset.noteId);
@@ -157,9 +207,9 @@ function create({document:doc=scope.document,fetch:fetcher=scope.fetch.bind(scop
   if(!user)return;
   try{const saved=JSON.parse(scope.sessionStorage.getItem('atlas-editorial-draft')||'null');if(saved?.quote&&saved?.topicId){scope.sessionStorage.removeItem('atlas-editorial-draft');showMenu(saved,null);}}catch{}
  });
- return {update(value){context=value;setHover(null);entry.hidden=value?.tab==='note';}};
+ return {update(value){context=value;setHover(null);}};
 }
-const api={textBlock,snapshot,create};
+const api={textBlock,snapshot,accountMarkup,create};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else{scope.AtlasEditorial=api;scope.ATLAS_EDITORIAL=create();}
 })(typeof window!=='undefined'?window:globalThis);

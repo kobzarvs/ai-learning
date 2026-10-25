@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
-const {textBlock,snapshot}=require('../editorial.js');
+const {textBlock,snapshot,accountMarkup}=require('../editorial.js');
 const origin='https://ai-atlas-plum.vercel.app';
 const token='a'.repeat(43),requestId='11111111-1111-4111-8111-111111111111';
 const noteId='22222222-2222-4222-8222-222222222222';
@@ -21,6 +21,15 @@ function database(user=visitor,respond=()=>[]){
  return sql;
 }
 const endpoints=import('../editorial-db.mjs');
+
+test('account identity safely renders GitHub names and limits avatar requests to numeric user IDs',()=>{
+ const html=accountMarkup({id:'123',login:'reader',name:'<img src=x onerror=alert(1)>',isModerator:false},'account-test');
+ assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img src=x/);
+ assert.match(html,/https:\/\/avatars\.githubusercontent\.com\/u\/123\?s=80/);
+ assert.match(html,/Мои замечания/);assert.doesNotMatch(html,/Модерация/);
+ assert.doesNotMatch(accountMarkup({...visitor,id:'https://other.test/avatar'},'account-test'),/<img/);
+ assert.match(accountMarkup(null,'account-test'),/>Войти<\/button>/);
+});
 
 test('anonymous readers cannot read or submit editorial notes; cross-origin writes stop before SQL',async()=>{
  const {notesResponse}=await endpoints;const sql=database();

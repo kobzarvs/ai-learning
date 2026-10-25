@@ -11,7 +11,7 @@ function create(o){
  const causalExperiment={minutesSaved:4,assignment:'biased'};
  const lessonVisual=id=>scope.AtlasLessonVisuals?.render(id,causalExperiment)||'';
  const storageKey='ai-atlas-workspaces-v1';let boards={},active=null,stack=[],views=new Map(),selection=new Set(),selectedGroup=null,drag=null,suppressClick=false,lasso=false,edit=null,readerCard=null,undo=[];
- try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст. Импортируй резервную копию.');}
+ try{const saved=localStorage.getItem(storageKey);if(saved)boards=C.parseImport(saved).boards;}catch{toast('Не удалось прочитать сохранённый холст.');}
  const board=()=>boards[active];
  function save(){try{localStorage.setItem(storageKey,JSON.stringify({version:1,boards}));$('space-status').textContent='Сохранено в этом браузере';}catch{$('space-status').textContent='Не сохранено — скачай копию';toast('Не удалось сохранить изменения. Скачай копию холстов.');}}
  function checkpoint(){undo.push({id:active,board:structuredClone(board())});if(undo.length>30)undo.shift();$('space-undo').disabled=false;}
@@ -183,16 +183,6 @@ function create(o){
  $('space-note').onclick=()=>editor('note');$('space-group').onclick=()=>editor('group');
  $('space-lasso').onclick=()=>{lasso=!lasso;$('space-lasso').setAttribute('aria-pressed',String(lasso));canvas.classList.toggle('lasso-mode',lasso);if(lasso)o.selectTool();};
  $('space-undo').onclick=()=>{const last=undo.pop();if(!last)return;boards[last.id]=last.board;if(last.id===active){selection.clear();selectedGroup=null;render();}save();$('space-undo').disabled=!undo.length;};
- $('space-export').onclick=()=>download('ai-atlas-workspaces.json',JSON.stringify({version:1,boards},null,2),'application/json');
- $('space-import').onclick=()=>$('space-file').click();
- $('space-file').addEventListener('change',async e=>{
-  const file=e.target.files?.[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Файл больше 20 МБ.');const imported=C.parseImport(await file.text());let count=0;
-   for(const [id,incoming] of Object.entries(imported.boards)){if(!index.has(id)||id==='root')continue;const existing=boards[id];if(!existing){boards[id]=incoming;count++;continue;}
-    const groups=new Map();for(const g of incoming.groups){const old=existing.groups.find(x=>x.id===g.id);if(old&&JSON.stringify(old)===JSON.stringify(g)){groups.set(g.id,g.id);continue;}const copy={...g,id:old?C.uid():g.id};groups.set(g.id,copy.id);existing.groups.push(copy);}
-    for(const c of incoming.cards){const old=existing.cards.find(x=>x.id===c.id);if(old&&JSON.stringify(old)===JSON.stringify(c))continue;existing.cards.push({...c,id:old?C.uid():c.id,groupId:groups.get(c.groupId)||null});count++;}
-   }save();render();toast(count?'Копия добавлена. Текущие заметки сохранены.':'В копии нет новых карточек.');
-  }catch(error){toast('Не удалось импортировать: '+error.message);}finally{e.target.value='';}
- });
  $('space-link').onclick=()=>{$('topic-picker-list').innerHTML=[...index.values()].filter(n=>n.parent&&n.id!==active).map(n=>`<button data-add-topic="${n.id}">${rich(n.name)}</button>`).join('');$('topic-picker').showModal();};
  $('topic-picker-close').onclick=()=>$('topic-picker').close();$('topic-picker-search').addEventListener('input',e=>{const q=e.target.value.toLocaleLowerCase('ru');$('topic-picker-list').querySelectorAll('button').forEach(b=>b.hidden=!b.textContent.toLocaleLowerCase('ru').includes(q));});
  document.addEventListener('click',e=>{
