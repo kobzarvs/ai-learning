@@ -30,6 +30,18 @@ jobs:
       - run: uv sync --locked --extra cpu
       - run: uv pip check
       - run: uv run --locked --extra cpu python examples/python/run_all.py --device cpu
+      - name: Run the CPU files shown in lessons
+        working-directory: examples/python/cpu
+        run: |
+          uv run --locked --extra cpu python - <<'PYTHON'
+          from pathlib import Path
+          import runpy
+          for path in sorted(Path('.').glob('*.py')):
+              print('RUN', path.name, flush=True)
+              runpy.run_path(str(path), run_name='__main__')
+          PYTHON
+      - name: Check game-agent learning and reward-sensitive routes
+        run: uv run --locked --extra cpu python lessons/test_game_agents.py
       - name: Check unavailable CUDA reports an actionable error
         run: |
           if uv run --locked --extra cpu python examples/python/lora.py --device cuda > /tmp/cuda-check.txt 2>&1; then
@@ -40,7 +52,7 @@ jobs:
       - name: Ensure generated lessons match their source
         run: |
           uv run --locked --extra cpu python lessons/generate.py
-          git diff --exit-code -- ai-atlas/lesson-data.js examples/python examples/rust-burn/src/bin examples/mlx
+          git diff --exit-code -- ai-atlas/lesson-data.js examples/python examples/rust-burn/src/bin examples/mlx examples/INDEX.md
   rust:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -52,6 +64,8 @@ jobs:
         run: cargo +1.98.1 build --locked --manifest-path examples/rust-burn/Cargo.toml --bins
         env:
           RUSTFLAGS: '-D deprecated'
+      - name: Check grid movement and one-time item rewards
+        run: cargo +1.98.1 test --locked --manifest-path examples/rust-burn/Cargo.toml --bin lab-game-grid --bin lab-game-items
       - name: Run all Rust examples
         run: |
           for file in examples/rust-burn/src/bin/*.rs; do
@@ -74,6 +88,16 @@ jobs:
       - run: uv sync --locked --extra mlx-cpu
       - run: uv pip check
       - run: uv run --locked --extra mlx-cpu python examples/mlx/run_all.py --device cpu
+      - name: Run the CPU files shown in lessons
+        working-directory: examples/mlx/cpu
+        run: |
+          uv run --locked --extra mlx-cpu python - <<'PYTHON'
+          from pathlib import Path
+          import runpy
+          for path in sorted(Path('.').glob('*.py')):
+              print('RUN', path.name, flush=True)
+              runpy.run_path(str(path), run_name='__main__')
+          PYTHON
   rust-gpu-build:
     strategy:
       fail-fast: false

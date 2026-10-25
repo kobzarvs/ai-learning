@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "image",
+    "title": "Иллюстрация из публикации",
+    "src": "https://atlas-test.public.blob.vercel-storage.com/illustrations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp",
+    "alt": "Архитектура нейросети с ветвлением",
+    "caption": "Рисунок 1. Общая архитектура.",
+    "sourceUrl": "https://example.org/paper",
+    "sourceLabel": "Авторы статьи, CC BY 4.0"
+  },
+  {
+    "kind": "svg",
+    "title": "Остаточный блок ResNet",
+    "alt": "Вход x проходит через два слоя; обходная ветвь переносит x к сумматору. Выход равен F(x) + x.",
+    "caption": "Авторская учебная схема: стрелки показывают прямой проход и остаточную связь.",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 900 320\"><defs><marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\"><path d=\"M0 0L10 5L0 10Z\" fill=\"#356957\"/></marker><linearGradient id=\"layer\" x1=\"0%\" x2=\"100%\"><stop offset=\"0%\" stop-color=\"#e6f1e9\"/><stop offset=\"100%\" stop-color=\"#c8e1d2\"/></linearGradient></defs><rect width=\"900\" height=\"320\" rx=\"18\" fill=\"#f8faf7\"/><g fill=\"none\" stroke=\"#356957\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><path d=\"M100 200H215\"/><path d=\"M355 200H430\"/><path d=\"M570 200H665\"/><path d=\"M735 200H830\"/><path d=\"M150 200V65H700V160\"/></g><g fill=\"url(#layer)\" stroke=\"#98bda6\" stroke-width=\"2\"><rect x=\"220\" y=\"150\" width=\"135\" height=\"100\" rx=\"14\"/><rect x=\"435\" y=\"150\" width=\"135\" height=\"100\" rx=\"14\"/><circle cx=\"700\" cy=\"200\" r=\"34\"/></g><g font-family=\"sans-serif\" font-size=\"24\" text-anchor=\"middle\" fill=\"#243c30\"><text x=\"70\" y=\"208\">x</text><text x=\"287\" y=\"194\"><tspan x=\"287\">Слой 1</tspan><tspan x=\"287\" dy=\"30\">+ ReLU</tspan></text><text x=\"502\" y=\"208\">Слой 2</text><text x=\"700\" y=\"209\" font-size=\"32\">+</text><text x=\"425\" y=\"48\">Обходная связь: x</text><text x=\"620\" y=\"181\">F(x)</text><text x=\"790\" y=\"280\">F(x) + x</text></g></svg>"
+  }
+]

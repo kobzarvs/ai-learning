@@ -1,37 +1,47 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const L=require('../launch.js'),ctx={window:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../lesson-data.js'),'utf8'),ctx);
-const {topics,meta}=ctx.window.ATLAS_LESSONS;
-test('every Rust guide creates a binary project and supplies Cargo.toml and src/main.rs before running',()=>{
- for(const [id,lesson] of Object.entries(topics).filter(([,l])=>l.rust)){
-  const p=L.plan(id,lesson,meta,{language:'rust'}),blocks=p.steps.flatMap(s=>s.blocks||[]);
-  assert.match(blocks[0].code,/^cargo new --bin --vcs none /);assert.doesNotMatch(blocks[0].code,/cargo run/);
-  assert.deepEqual(blocks.map(b=>b.id),['init','cargo','rust','run']);assert.equal(blocks[2].label,'src/main.rs');assert.equal(blocks[2].code,lesson.rust.code);
-  assert.match(blocks[2].code,/fn main\(/);assert.match(blocks[1].code,/\[package\]/);assert.match(blocks[3].code,/cargo run --release$/);
-  assert.ok(blocks[3].code.includes('BURN_DEVICE'));assert.ok(blocks[3].code.includes('flex'));
-  for(const line of blocks[2].code.split('\n'))if(line.trimStart().startsWith('//'))assert.ok(line.length<=88,id+': long comment');
+const {topics:rootTopics,meta}=ctx.window.ATLAS_LESSONS;
+const topics=Object.fromEntries(Object.entries(rootTopics).flatMap(([id,lesson])=>L.examples(id,lesson).map(e=>[e.id,e.lesson])));
+test('all guides share one clone and launch an existing file from the selected folder',()=>{
+ const path=require('node:path'),root=path.resolve(__dirname,'../..');
+ for(const [id,lesson] of Object.entries(topics))for(const language of ['python','rust','mlx']){
+  const example=language==='python'?lesson:lesson[language];if(!example)continue;
+  for(const [device] of L.deviceChoices[language])for(const mode of ['local','container']){
+   const p=L.plan(id,lesson,meta,{language,device,mode});if(p.blocked)continue;
+   const folder=language==='rust'?'examples/rust-burn':`examples/${language}/${device}`;
+   const relative=folder+(language==='rust'?'/src/bin/':'/')+id+(language==='rust'?'.rs':'.py');
+   if(mode==='local')assert.equal(L.findBlock(p,'init').code,'git clone https://github.com/kobzarvs/ai-learning.git\ncd ai-learning');
+   assert.equal(L.findBlock(p,'folder')?.code,'cd '+folder);
+   assert.ok(fs.existsSync(path.join(root,relative)),relative+' must exist after cloning');
+   assert.equal(L.findBlock(p,language).label,relative);
+   assert.equal(L.findBlock(p,language).code,fs.readFileSync(path.join(root,relative),'utf8'));
+   assert.equal(p.steps.some(s=>s.createFile),false);
+   const run=L.findBlock(p,'run').code;
+   if(language==='rust'){
+    assert.match(run,new RegExp('--bin '+id+'$'));
+    assert.match(run,/cargo run --locked --release/);
+    assert.equal(L.findBlock(p,'install').code,'cargo fetch --locked');
+   }else{
+    assert.ok(run.endsWith('python '+id+'.py'));
+    assert.match(L.findBlock(p,'install').code,/^uv sync --locked /);
+   }
+  }
  }
 });
-test('every Python guide saves the selected source before running its matching filename',()=>{
- for(const [id,lesson] of Object.entries(topics)){
-  const p=L.plan(id,lesson,meta),blocks=p.steps.flatMap(s=>s.blocks||[]);
-  assert.deepEqual(blocks.map(b=>b.id),['init','install','python','run']);assert.match(blocks[1].code,/uv sync --locked --extra cpu/);
-  assert.match(blocks[2].code,/device = torch.device\("cpu"\)/);
-  assert.doesNotMatch(blocks[2].code,/argparse|SUPPORTED_DEVICES|requested_device/);
-  assert.equal(blocks[2].label,'examples/python/'+id+'-cpu.py');
-  assert.match(p.steps[2].body,/Создай файл/);
-  assert.equal(blocks[3].code,'uv run --locked --extra cpu python '+blocks[2].label);
-  assert.equal(L.findBlock(p,'run').code,blocks[3].code,'copy uses the displayed command');
+test('GPU instructions select the matching dependency profile and backend',()=>{
+ const python=L.plan('lora',topics.lora,meta,{device:'cuda'});
+ assert.equal(L.findBlock(python,'folder').code,'cd examples/python/cuda');
+ assert.equal(L.findBlock(python,'install').code,'uv sync --locked --extra cuda');
+ assert.equal(L.findBlock(python,'run').code,'uv run --locked --extra cuda python lora.py');
+ assert.match(L.findBlock(python,'python').code,/device = torch.device\("cuda"\)/);
+ for(const [device,backend] of [['cpu','flex'],['cuda','cuda'],['metal','metal']]){
+  const p=L.plan('lora',topics.lora,meta,{language:'rust',device});
+  assert.equal(L.findBlock(p,'run').code,'BURN_DEVICE='+backend+' cargo run --locked --release'+(device==='cpu'?'':' --features '+device)+' --bin lora');
  }
-});
-test('GPU instructions select a matching package/backend and never silently substitute CPU',()=>{
- const p=L.plan('lora',topics.lora,meta,{device:'cuda'});
- assert.match(L.findBlock(p,'install').code,/--extra cuda/);
- assert.match(L.findBlock(p,'run').code,/lora-cuda\.py$/);
- assert.match(L.findBlock(p,'python').code,/device = torch.device\("cuda"\)/);
- const rust=L.plan('lora',topics.lora,meta,{language:'rust',device:'cuda'});
- assert.match(L.findBlock(rust,'cargo').code,/"cuda"/);
- assert.doesNotMatch(L.findBlock(rust,'cargo').code,/"metal"|"flex"/);
- assert.match(L.findBlock(rust,'run').code,/BURN_DEVICE/);
+ const mlx=L.plan('lora',topics.lora,meta,{language:'mlx',device:'metal'});
+ assert.equal(L.findBlock(mlx,'install').code,'uv sync --locked --extra mlx');
+ const cpu=L.plan('lora',topics.lora,meta,{language:'mlx',device:'cpu'});
+ assert.equal(L.findBlock(cpu,'install').code,'uv sync --locked --extra mlx --extra mlx-cpu');
  for(const language of ['python','rust','mlx']){
   const device=language==='python'?'mps':'metal';
   const p=L.plan('lora',topics.lora,meta,{language,device,mode:'container'});
@@ -50,11 +60,9 @@ test('MLX examples and every Rust counterpart keep the original task and use ind
    const device=lesson.mlx.devices.includes('metal')?'metal':'cpu';
    const p=L.plan(id,lesson,meta,{language:'mlx',device});
    assert.equal(lesson.mlx.goal,lesson.goal);
-   assert.match(L.findBlock(p,'mlx').code,new RegExp('mx.set_default_device\\(mx.'+(device==='metal'?'gpu':'cpu')+'\\)'));
-   assert.doesNotMatch(L.findBlock(p,'mlx').code,/argparse|requested/);
    assert.doesNotMatch(lesson.mlx.code,/import torch/);
    for(const field of ['exercise','explanation'])assert.doesNotMatch(lesson.mlx[field],/torch\.|PyTorch|scaled_dot_product_attention|is_causal/,id+': instructions must match MLX');
-   assert.match(L.findBlock(p,'run').code,new RegExp('examples/mlx/'+id+'-'+device+'\\.py$'));
+   assert.equal(L.findBlock(p,'run').code.split(' ').at(-1),id+'.py');
   }
  }
 });
@@ -68,19 +76,13 @@ test('alternate framework exercises refer to functions present in their own exam
  assert.match(topics.derivatives.mlx.exercise,/numerical/);
  assert.match(topics.derivatives.mlx.code,/numerical =/);
 });
-test('container launches create selected Python files before running and use the existing Rust binary',()=>{
+test('container guides preserve the prepared CPU environment and reference the shared repository',()=>{
  const target=new URL(L.containerURL),protocol=new URL(target.searchParams.get('url'));
  assert.equal(target.origin,'https://vscode.dev');assert.equal(protocol.protocol,'vscode:');assert.equal(protocol.searchParams.get('url'),'https://github.com/kobzarvs/ai-learning');
- for(const [id,lesson] of Object.entries(topics))for(const language of lesson.rust?['python','rust']:['python']){
-  const p=L.plan(id,lesson,meta,{language,mode:'container'}),file=language==='rust'?'../../examples/rust-burn/src/bin/'+id+'.rs':'../../examples/python/'+id+'.py';
-  assert.equal(p.steps[1].action.url,L.containerURL);
-  if(language==='rust')assert.equal(p.source.code,fs.readFileSync(require.resolve(file),'utf8'));
-  else{
-   assert.match(p.steps[2].body,/Создай файл/);
-   assert.equal(p.steps[2].blocks[0].id,'python');assert.equal(p.steps[3].blocks[0].id,'run');
-  }
-  assert.ok(L.findBlock(p,'run').code.includes(language==='rust'?'--bin '+id:'examples/python/'+id+'-cpu.py'));
- }
+ const p=L.plan('lora',topics.lora,meta,{language:'mlx',mode:'container'});
+ assert.equal(p.steps[1].action.url,L.containerURL);
+ assert.equal(L.findBlock(p,'install').code,'uv sync --locked --extra cpu --extra mlx-cpu');
+ assert.equal(L.findBlock(p,'run').code,'uv run --locked --extra cpu --extra mlx-cpu python lora.py');
  assert.throws(()=>L.plan('../escape',topics.lora,meta));
  const config=JSON.parse(fs.readFileSync(require.resolve('../../.devcontainer/devcontainer.json'),'utf8'));
  assert.equal(config.waitFor,'postCreateCommand');assert.match(config.postCreateCommand,/setup.sh/);
@@ -140,4 +142,25 @@ for node in ast.walk(tree):
   assert len(node.args)==1 and isinstance(node.args[0],ast.Name)
 `],{input:topics.causal.display.body,encoding:'utf8'});
  assert.equal(checked.status,0,checked.stderr);
+});
+
+test('the optional creation command saves the displayed file relative to its launch folder',()=>{
+ const {spawnSync}=require('node:child_process'),os=require('node:os'),path=require('node:path');
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'atlas-create-'));
+ try{
+  for(const [language,device,file] of [['python','mps','lora.py'],['mlx','metal','lora.py'],['rust','cpu','src/bin/lora.rs']]){
+   const p=L.plan('lora',topics.lora,meta,{language,device});
+   const saved=spawnSync('bash',['-c',L.createFileCommand(p,language)],{cwd:folder,encoding:'utf8'});
+   assert.equal(saved.status,0,saved.stderr);
+   assert.equal(fs.readFileSync(path.join(folder,file),'utf8'),L.findBlock(p,language).code);
+  }
+  const lesson={...topics.lora,display:{prefix:'',body:'text = """\nATLAS_SOURCE\n$(touch injected)\n`touch injected-too`\n"""\n'}};
+  const p=L.plan('lora',lesson,meta);
+  const saved=spawnSync('bash',['-c',L.createFileCommand(p,'python')],{cwd:folder,encoding:'utf8'});
+  assert.equal(saved.status,0,saved.stderr);
+  assert.equal(fs.readFileSync(path.join(folder,'lora.py'),'utf8'),L.findBlock(p,'python').code);
+  assert.equal(fs.existsSync(path.join(folder,'injected')),false);
+  assert.equal(fs.existsSync(path.join(folder,'injected-too')),false);
+  assert.throws(()=>L.createFileCommand(p,'run'));
+ }finally{fs.rmSync(folder,{recursive:true,force:true});}
 });

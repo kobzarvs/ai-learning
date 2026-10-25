@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { database } from './content-db.mjs';
+import { enqueueRun,publicRun,workerStatus } from './agent-db.mjs';
 
 export const editorialSchema = [
  `CREATE TABLE IF NOT EXISTS atlas_users (
@@ -53,7 +54,7 @@ const cookieValue=(request,name)=>(request.headers.get('cookie')||'').split(';')
 const validToken=value=>/^[A-Za-z0-9_-]{43}$/.test(value);
 const moderator=id=>String(id)===(process.env.ATLAS_MODERATOR_GITHUB_ID||'1615093');
 const origin=()=>process.env.ATLAS_ORIGIN||'https://ai-atlas-plum.vercel.app';
-const sameOrigin=request=>request.headers.get('origin')===origin();
+export const sameOrigin=request=>request.headers.get('origin')===origin();
 const redirect=(url,headers={})=>new Response(null,{status:303,headers:{...responseHeaders,Location:url,...headers}});
 
 export async function currentUser(request,sql){
@@ -78,7 +79,7 @@ export async function authResponse(request,connect=database,fetcher=fetch){
   if(action==='login'){
    if(!configured)return json({error:'Вход ещё настраивается. Замечания пока отправлять нельзя.'},503);
    const back=url.searchParams.get('returnTo')||'/';
-   const returnTo=/^\/(?:#[a-zA-Z0-9_-]+)?$/.test(back)?back:'/';
+   const returnTo=/^\/(?:\?tab=(?:article|methods|python|rust|mlx|exercise))?(?:#[a-zA-Z0-9_-]+)?$/.test(back)?back:'/';
    const state=secret(),verifier=secret(),sql=await connect();
    await sql.transaction([
     sql.query('DELETE FROM atlas_oauth_states WHERE expires_at<now()'),
@@ -124,7 +125,7 @@ export async function authResponse(request,connect=database,fetcher=fetch){
  }catch{return json({error:'Не удалось выполнить вход. Попробуй ещё раз.'},503);}
 }
 
-async function body(request){
+export async function readJSON(request){
  if(!request.headers.get('content-type')?.startsWith('application/json'))throw Error('format');
  const reader=request.body?.getReader();if(!reader)throw Error('body');
  const chunks=[];let size=0;
@@ -132,6 +133,21 @@ async function body(request){
  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 const clean=(value,max)=>typeof value==='string'&&value.trim().length<=max?value.trim():null;
+
+export const notesQuery=`SELECT n.*,u.login,u.name,c.payload->'node'->>'name' AS topic_title,
+ to_jsonb(latest)-'snapshot'-'lease_token' AS run
+ FROM atlas_editorial_notes n JOIN atlas_users u ON u.id=n.user_id JOIN atlas_content c ON c.id=n.topic_id
+ LEFT JOIN LATERAL (SELECT * FROM atlas_agent_runs r WHERE r.note_id=n.id ORDER BY r.created_at DESC,r.id DESC LIMIT 1) latest ON true
+ WHERE ($1::boolean OR n.user_id=$2)
+ AND ($3='all' OR n.status=$3 OR ($3='inbox' AND (n.status='pending' OR
+   (n.status NOT IN ('done','rejected') AND (latest.status='failed' OR (latest.status='running' AND latest.lease_until<now()))))))
+ AND ($4='' OR n.topic_id=$4)
+ AND ($5='' OR (n.created_at,n.id)<(SELECT created_at,id FROM atlas_editorial_notes WHERE id=NULLIF($5,'')::uuid AND ($1::boolean OR user_id=$2)))
+ AND ($6='' OR n.id=NULLIF($6,'')::uuid)
+ AND ($7='' OR position(lower($7) IN lower(concat_ws(' ',c.payload->'node'->>'name',n.quote,n.instruction,n.moderator_note)))>0
+  OR EXISTS(SELECT 1 FROM atlas_agent_runs searched WHERE searched.note_id=n.id
+   AND position(lower($7) IN lower(concat_ws(' ',searched.summary,searched.error,searched.snapshot->>'moderatorComment')))>0))
+ ORDER BY n.created_at DESC,n.id DESC LIMIT ($8::int+1)`;
 
 export async function notesResponse(request,connect=database){
  if(!['GET','POST','PATCH'].includes(request.method))return json({error:'Method not allowed'},405);
@@ -143,17 +159,15 @@ export async function notesResponse(request,connect=database){
   if(request.method==='GET'){
    const all=url.searchParams.get('scope')==='all';
    if(all&&!user.isModerator)return json({error:'Доступно только модератору.'},403);
-   const status=url.searchParams.get('status')||'all',topic=url.searchParams.get('topic')||'',before=url.searchParams.get('before')||'';
-   if(!['all',...statuses].includes(status)||(!/^[a-zA-Z0-9_-]{0,80}$/.test(topic))||(before&&!uuid.test(before)))return json({error:'Неверный фильтр'},400);
-   const rows=await sql.query(`SELECT n.*,u.login,u.name,c.payload->'node'->>'name' AS topic_title
-     FROM atlas_editorial_notes n JOIN atlas_users u ON u.id=n.user_id JOIN atlas_content c ON c.id=n.topic_id
-     WHERE ($1::boolean OR n.user_id=$2) AND ($3='all' OR n.status=$3) AND ($4='' OR n.topic_id=$4)
-     AND ($5='' OR (n.created_at,n.id)<(SELECT created_at,id FROM atlas_editorial_notes WHERE id=NULLIF($5,'')::uuid AND ($1::boolean OR user_id=$2)))
-     ORDER BY n.created_at DESC,n.id DESC LIMIT 51`,[all,user.id,status,topic,before]);
-   const hasMore=rows.length>50,notes=rows.slice(0,50);
-   return json({notes,next:hasMore?notes.at(-1).id:null});
+   const status=url.searchParams.get('status')||'all',topic=url.searchParams.get('topic')||'',before=url.searchParams.get('before')||'',id=url.searchParams.get('id')||'';
+   const q=(url.searchParams.get('q')||'').trim(),limit=url.searchParams.get('limit')||'50';
+   if(!['all','inbox',...statuses].includes(status)||(!/^[a-zA-Z0-9_-]{0,80}$/.test(topic))||(before&&!uuid.test(before))||(id&&!uuid.test(id))||q.length>200||!/^\d{1,2}$/.test(limit)||Number(limit)<1||Number(limit)>50)return json({error:'Неверный фильтр'},400);
+   const worker=await workerStatus(sql),pageSize=Number(limit);
+   const rows=await sql.query(notesQuery,[all,user.id,status,topic,before,id,q,pageSize]);
+   const hasMore=rows.length>pageSize,notes=rows.slice(0,pageSize).map(n=>({...n,run:publicRun(n.run)}));
+   return json({notes,next:hasMore?notes.at(-1).id:null,worker});
   }
-  let input;try{input=await body(request);if(!input||typeof input!=='object'||Array.isArray(input))throw Error('object');}catch{return json({error:'Некорректное или слишком длинное замечание.'},400);}
+  let input;try{input=await readJSON(request);if(!input||typeof input!=='object'||Array.isArray(input))throw Error('object');}catch{return json({error:'Некорректное или слишком длинное замечание.'},400);}
   if(request.method==='POST'){
    const quote=clean(input.quote,6000),instruction=clean(input.instruction||'',3000),topic=clean(input.topicId,80);
    const anchor=input.anchor;
@@ -162,7 +176,7 @@ export async function notesResponse(request,connect=database){
      !anchor||typeof anchor!=='object'||Array.isArray(anchor)||!Object.values(anchor).every(v=>typeof v==='string'&&v.length<=300)||Object.keys(anchor).some(k=>!['methodId','panel','section','block'].includes(k))||
      !/^\d{1,18}$/.test(String(input.contentRevision||'0')))return json({error:'Проверь текст и инструкцию.'},400);
    const [existing]=await sql.query('SELECT * FROM atlas_editorial_notes WHERE user_id=$1 AND request_id=$2',[user.id,input.requestId]);
-   if(existing)return json({note:existing},200);
+   if(existing)return submissionResponse(sql,existing,user,input.requestId,200);
    const [topicRow]=await sql.query('SELECT id FROM atlas_content WHERE id=$1',[topic]);
    if(!topicRow)return json({error:'Тема не найдена.'},404);
    const [quota]=await sql.query(`INSERT INTO atlas_editorial_limits(user_id,hour,requests) VALUES($1,date_trunc('hour',now()),1)
@@ -176,13 +190,14 @@ export async function notesResponse(request,connect=database){
      VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::bigint,$9,$10,$11)
      ON CONFLICT(user_id,request_id) DO UPDATE SET request_id=EXCLUDED.request_id RETURNING *`,
      [randomUUID(),user.id,input.requestId,topic,input.tab,JSON.stringify(anchor),quote,String(input.contentRevision||'0'),input.action,instruction,executionMode]);
-   return json({note},201);
+   return submissionResponse(sql,note,user,input.requestId,201);
   }
   if(!user.isModerator)return json({error:'Доступно только модератору.'},403);
   const comment=clean(input.comment||'',3000);
   if(!uuid.test(input.id)||!statuses.includes(input.status)||!Number.isSafeInteger(input.version)||input.version<1||comment===null)return json({error:'Некорректное решение модератора.'},400);
   const [result]=await sql.query(`WITH previous AS MATERIALIZED (
-     SELECT id,status FROM atlas_editorial_notes WHERE id=$1::uuid AND version=$2 FOR UPDATE
+     SELECT id,status FROM atlas_editorial_notes WHERE id=$1::uuid AND version=$2
+     AND NOT EXISTS(SELECT 1 FROM atlas_agent_runs WHERE note_id=$1::uuid AND (status='queued' OR (status='running' AND lease_until>now()))) FOR UPDATE
    ), changed AS (
      UPDATE atlas_editorial_notes n SET status=$3,moderator_note=$4,moderated_by=$5,version=version+1,updated_at=now()
      FROM previous p WHERE n.id=p.id AND n.version=$2 RETURNING n.*,p.status AS previous_status
@@ -190,6 +205,14 @@ export async function notesResponse(request,connect=database){
      INSERT INTO atlas_editorial_events(note_id,actor_id,from_status,to_status,comment)
        SELECT id,$5,previous_status,status,$4 FROM changed
    ) SELECT * FROM changed`,[input.id,input.version,input.status,comment,user.id]);
-  return result?json({note:result}):json({error:'Замечание уже изменено. Обнови список.'},409);
+  return result?json({note:result}):json({error:'Замечание изменилось или уже выполняется агентом. Обнови список.'},409);
  }catch{return json({error:'Не удалось сохранить или загрузить замечания. Попробуй ещё раз.'},503);}
+}
+
+async function submissionResponse(sql,note,user,requestId,status){
+ if(!user.isModerator||note.execution_mode!=='owner_request')return json({note},status);
+ try{
+  const run=await enqueueRun(sql,{noteId:note.id,version:note.version||1,requestId,actorId:user.id,comment:note.moderator_note||'',priority:0});
+  return json({note,run,worker:await workerStatus(sql)},status);
+ }catch{return json({note,dispatchError:'Команда сохранена, но запуск не подтверждён. Открой модерацию и нажми «Выполнить сейчас».'},status);}
 }

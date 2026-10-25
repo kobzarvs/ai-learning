@@ -1,6 +1,5 @@
-.git
 .env*
-node_modules
-test
-README.md
-*.zip
+node_modules/
+agent/
+dist/
+search/

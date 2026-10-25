@@ -2,7 +2,7 @@
 // rendering are tested separately; this covers event ordering, not browser layout.
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../core.js'),data=require('../../map-data.json');
-function setup({spaces=false}={}){
+function setup({spaces=false,hash="",search=""}={}){
  class Element{
   constructor(id,tag='DIV',parent=null){this.id=id;this.tagName=tag;this.parentElement=parent;this.listeners={};this.dataset={};this.attrs={};this.hidden=false;this.innerHTML='';this.clientWidth=1000;this.clientHeight=600;this.style={setProperty(){}};this.classes=new Set();this.captured=new Set();this.classList={add:c=>this.classes.add(c),remove:c=>this.classes.delete(c),contains:c=>this.classes.has(c),toggle:(c,yes)=>yes?this.classes.add(c):this.classes.delete(c)};}
   addEventListener(type,fn,options){(this.listeners[type]??=[]).push({fn,capture:options===true||options?.capture});}
@@ -23,13 +23,13 @@ function setup({spaces=false}={}){
  doc.getElementById=id=>elements.get(id)||null;
  const button=new Element('fake-card-button','BUTTON',canvas);button.dataset.open='cnn';
  const term=new Element('fake-term','ABBR',button);term.dataset.term='CNN';term.classes.add('term');
- const location={hash:''},history={replaceState(_a,_b,hash){location.hash=hash;}};
+ const location={hash,search},history={replaceState(_a,_b,hash){location.hash=hash;}};
  const storage=new Map(),clipboard=[],downloads=[],blobs=new Map();
  const objectURLs={createObjectURL(blob){const id='blob:'+blobs.size;blobs.set(id,blob);return id;},revokeObjectURL(id){blobs.delete(id);}};
  doc.createElement=tag=>{const el=new Element('',tag.toUpperCase());el.click=()=>downloads.push({name:el.download,blob:blobs.get(el.href)});return el;};
- const context={structuredClone,Blob,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
+ const context={structuredClone,Blob,URLSearchParams,URL:objectURLs,navigator:{clipboard:{writeText(text){clipboard.push(text);return Promise.resolve();}}},crypto:require('node:crypto').webcrypto,window:win,document:doc,location,history,localStorage:{getItem(k){return storage.get(k)||null;},setItem(k,v){storage.set(k,v);}},setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),ResizeObserver:class{observe(){}},console};
  win.AtlasCore=C;win.ATLAS_DATA=structuredClone(data);win.innerWidth=1440;win.innerHeight=900;
- if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','content.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);win.AtlasContent.start=options=>{win.contentHooks=options;return{refresh(){}};};}
+ if(spaces){win.AtlasWorkspaceCore=require('../workspace-core.js');for(const file of ['lesson-data.js','content.js','vendor/prism.js','ui.js','art.js','launch.js','lesson-visuals.js','lesson-guide.js','search.js','workspace.js'])vm.runInNewContext(fs.readFileSync(require.resolve('../'+file),'utf8'),context);win.AtlasContent.start=options=>{win.contentHooks=options;return{refresh(){}};};}
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
  function fire(type,target,props={}){
   const e={type,target,button:0,pointerId:1,clientX:100,clientY:100,detail:1,key:'',code:'',shiftKey:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;},stopImmediatePropagation(){this.stopped=true;this.immediate=true;},...props};
@@ -77,6 +77,14 @@ test('rendered cards keep plain attribute labels and accessible tooltip handlers
  assert.match(elements.get('term-tooltip').innerHTML,/Convolutional Neural Network/);
  assert.equal(term.attrs['aria-describedby'],'term-tooltip');
  fire('keydown',canvas,{key:'Escape'});assert.equal(elements.get('term-tooltip').hidden,true);
+});
+test('reader modifier clicks on glossary terms reach paragraph editing instead of the tooltip',()=>{
+ const s=setup({spaces:true});
+ const term=s.make('reader-term','ABBR',s.elements.get('reader-content'),{term:'CNN'});term.classes.add('term');
+ for(const modifiers of [{metaKey:true,shiftKey:true},{ctrlKey:true,shiftKey:true},{metaKey:true}]){
+  const event=s.fire('click',term,modifiers);assert.equal(event.immediate,undefined);assert.equal(event.defaultPrevented,undefined);
+ }
+ const ordinary=s.fire('click',term);assert.equal(ordinary.immediate,true);
 });
 function readView(elements){
  const m=elements.get('world').style.transform.match(/translate\(([-\d.e]+)px,\s*([-\d.e]+)px\) scale\(([-\d.e]+)\)/);
@@ -127,7 +135,7 @@ test('topic opens a separate canvas; a lesson opens the full reader and Back res
  assert.match(s.elements.get('reader-content').innerHTML,/token keyword/);
  assert.match(s.elements.get('reader-content').innerHTML,/task-brief/);
  for(const block of s.elements.get('reader-content').innerHTML.matchAll(/<code[^>]*>([\s\S]*?)<\/code>/g))assert.doesNotMatch(block[1],/<abbr/);
- s.elements.get('reader-close').onclick();
+ s.fire('cancel',s.elements.get('reader'));
  s.elements.get('space-back').onclick();
  assert.equal(s.elements.get('world').hidden,false);
  assert.equal(s.elements.get('world').style.transform,before);
@@ -153,15 +161,15 @@ test('every topic article shows shared application/example text once and preserv
   for(const text of new Set([n.tasks,n.example].filter(Boolean)))assert.equal(paragraphs.filter(p=>p===text.replace(/\s+/g,' ').trim()).length,1,n.id+': duplicated or missing application/example');
  }
 });
-test('the rendered Rust guide places its source before cargo run and switches to an existing container example',()=>{
+test('the rendered Rust guide installs dependencies before running the existing binary',()=>{
  const s=setup({spaces:true});s.fire('click',s.button);
  s.fire('click',s.make('rust','BUTTON',s.canvas,{read:'rust:cnn'}));
  let html=s.elements.get('reader-content').innerHTML;
- assert.ok(html.indexOf('data-copy-code="init"')<html.indexOf('data-copy-code="cargo"'));
- assert.ok(html.indexOf('data-copy-code="rust"')<html.indexOf('data-copy-code="run"'));
- assert.match(html,/src\/main.rs/);
+ assert.ok(html.indexOf('data-copy-code="init"')<html.indexOf('data-copy-code="folder"'));
+ assert.ok(html.indexOf('data-copy-code="install"')<html.indexOf('data-copy-code="run"'));
+ assert.match(html,/examples\/rust-burn\/src\/bin\/cnn.rs/);
  s.fire('click',s.make('container','BUTTON',null,{launchMode:'container'}));html=s.elements.get('reader-content').innerHTML;
- assert.match(html,/vscode.dev\/redirect/);assert.match(html,/Терминал Dev Container/);assert.match(html,/examples\/rust-burn\/Cargo.toml/);
+ assert.match(html,/vscode.dev\/redirect/);assert.match(html,/терминале VS Code/);assert.match(html,/examples\/rust-burn/);
  assert.doesNotMatch(html,/data-copy-code="init"/);
  s.fire('click',s.make('local','BUTTON',null,{launchMode:'local'}));
  assert.match(s.elements.get('reader-content').innerHTML,/data-copy-code="init"/);
@@ -196,10 +204,26 @@ test('switching devices preserves scroll and updates visible, copied and downloa
   assert.doesNotMatch(visible,/argparse|SUPPORTED_DEVICES|requested_device/);
   s.fire('click',s.make('download','BUTTON',null,{downloadCode:'python'}));
   const download=s.downloads.at(-1);
-  assert.equal(download.name,'cnn-'+device+'.py');
+  assert.equal(download.name,'cnn.py');
   assert.equal(await download.blob.text(),visible);
   s.fire('click',s.make('copy-run','BUTTON',null,{copyCode:'run'}));
-  assert.ok(s.clipboard.at(-1).endsWith('/'+download.name));
+  assert.ok(s.clipboard.at(-1).endsWith('python '+download.name));
+  const header=content.innerHTML.match(/<header>[^]*?data-create-file="python"[^]*?<\/header>/)?.[0];
+  assert.ok(header,'the creation command belongs in the code header');
+  const sourceHeader=header.slice(header.lastIndexOf('<header>'));
+  for(const action of ['copy','download']){
+   const button=sourceHeader.match(new RegExp('<button[^>]*data-'+action+'-code="python"[^>]*>([^]*?)</button>'));
+   assert.ok(button,action+' is beside the command');
+   assert.match(button[0],/aria-label="[^"]+"/);assert.match(button[0],/title="[^"]+"/);
+   assert.match(button[1],/<svg /);assert.equal(button[1].replace(/<[^>]*>/g,''),'');
+  }
+  assert.match(sourceHeader,/>Команда создания файла<\/button>/);
+  s.fire('click',s.make('create-file','BUTTON',null,{createFile:'python'}));
+  assert.match(s.clipboard.at(-1),/cat > 'cnn.py'/);
+  s.fire('click',s.make('copy-folder','BUTTON',null,{copyCode:'folder'}));
+  assert.equal(s.clipboard.at(-1),'cd examples/python/'+device);
+  const path=require('node:path');
+  assert.equal(fs.readFileSync(path.resolve(__dirname,'../../examples/python',device,download.name),'utf8'),visible);
   assert.equal(content.scrollTop,640);
  }
  for(const mode of ['container','local'])choose('launchMode',mode);
@@ -330,7 +354,7 @@ test('Pan clicks open cards and lessons without capturing the pointer or moving 
   const article=s.make('article','BUTTON',s.canvas,{read:'article:cnn'}),spaceView=readView(s.elements);
   click(article);assert.equal(s.elements.get('reader').open,true);
   assert.deepEqual(readView(s.elements),spaceView);
-  s.elements.get('reader-close').onclick();s.elements.get('space-back').onclick();
+  s.fire('cancel',s.elements.get('reader'));s.elements.get('space-back').onclick();
   assert.deepEqual(readView(s.elements),before,'a click with jitter does not move the map');
   click(s.make('save','BUTTON',s.canvas,{save:'cnn'}));
   assert.deepEqual(JSON.parse(s.storage.get('ai-atlas-route-v1')),['cnn']);
@@ -393,4 +417,50 @@ test('published content refresh preserves open tab, scroll, device, camera and p
  assert.match(s.elements.get('workspace-world').innerHTML,/Новое задание из базы/);
  assert.match(content.innerHTML,/data-launch-device="mps" aria-pressed="true"/);
  assert.deepEqual(readView(s.elements),camera);assert.equal(s.storage.get('ai-atlas-workspaces-v1'),saved);
+});
+
+test('moderation deep link opens the requested reader tab and falls back for unavailable tabs',()=>{
+ for(const [search,expected] of [['?tab=python','python'],['?tab=invalid','article']]){
+  const s=setup({spaces:true,hash:'#knn',search});
+  assert.equal(s.elements.get('reader').open,true);assert.equal(s.elements.get('reader').dataset.tab,expected);
+  assert.match(s.elements.get('reader-title').innerHTML,/kNN/);
+ }
+});
+
+test('deep link waits for a tab published in the database without overriding a later user choice',()=>{
+ for(const changeTab of [false,true]){
+  const s=setup({spaces:true,hash:'#trees',search:'?tab=mlx'});
+  assert.equal(s.elements.get('reader').dataset.tab,'article');
+  if(changeTab)s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
+  const lesson=structuredClone(s.win.ATLAS_LESSONS.topics.trees);lesson.mlx=structuredClone(s.win.ATLAS_LESSONS.topics.knn.mlx);
+  s.win.contentHooks.onChange([{id:'trees',revision:'200',payload:{lesson}}],false);
+  assert.equal(s.elements.get('reader').dataset.tab,changeTab?'python':'mlx');
+ }
+});
+
+test('reader dismissed by Escape stays closed when content is published',()=>{
+ const s=setup({spaces:true,hash:'#knn',search:'?tab=python'}),reader=s.elements.get('reader');
+ assert.equal(reader.open,true);s.fire('cancel',reader);assert.equal(reader.open,false);
+ s.win.contentHooks.onChange([{id:'knn',revision:'201',payload:{node:{what:'Обновление после закрытия'}}}],true);
+ assert.equal(reader.open,false);assert.equal(s.location.hash,'#knn');
+});
+
+test('the game reader keeps the selected example across Python, Rust and exercise tabs',()=>{
+ const s=setup({spaces:true});
+ s.fire('click',s.make('game-topic','BUTTON',s.canvas,{open:'lab-game'}));
+ s.fire('click',s.make('game-python','BUTTON',s.canvas,{read:'python:lab-game'}));
+ const content=s.elements.get('reader-content');
+ assert.match(s.elements.get('reader-tabs').innerHTML,/Rust \+ Burn/);
+ for(const id of ['lab-game-grid','lab-game-items','lab-game']){
+  s.fire('click',s.make('variant','BUTTON',null,{lessonExample:id}));
+  assert.match(content.innerHTML,new RegExp('data-lesson-example="'+id+'" aria-pressed="true"'));
+  s.fire('click',s.make('copy','BUTTON',null,{copyCode:'run'}));
+  assert.equal(s.clipboard.at(-1),'uv run --locked --extra cpu python '+id+'.py');
+  s.fire('click',s.make('rust','BUTTON',null,{readerTab:'rust'}));
+  s.fire('click',s.make('copy','BUTTON',null,{copyCode:'run'}));
+  assert.equal(s.clipboard.at(-1),'BURN_DEVICE=flex cargo run --locked --release --bin '+id);
+  s.fire('click',s.make('exercise','BUTTON',null,{readerTab:'exercise'}));
+  assert.match(content.innerHTML,new RegExp('data-lesson-example="'+id+'" aria-pressed="true"'));
+  s.fire('click',s.make('python','BUTTON',null,{readerTab:'python'}));
+ }
 });

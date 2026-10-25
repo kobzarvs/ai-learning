@@ -5,8 +5,8 @@ function create(o){
  const $=id=>document.getElementById(id),canvas=$('canvas'),world=$('workspace-world');
  const art=(id,options)=>scope.AtlasArt?.render(id,options)||'';
  const lessons=scope.ATLAS_LESSONS?.topics||{},meta=scope.ATLAS_LESSONS?.meta||{};
- const contentBlocks=new Map();
- let launchMode='local',currentLaunch=null,exerciseLanguage='python';
+ const contentBlocks=new Map(),guideStates=new Map(),exampleSelections=new Map();
+ let launchMode='local',currentLaunch=null,exerciseLanguage='python',pendingMaterialTab=null;
  const launchDevices={python:'cpu',rust:'cpu',mlx:'metal'};
  const causalExperiment={minutesSaved:4,assignment:'biased'};
  const lessonVisual=id=>scope.AtlasLessonVisuals?.render(id,causalExperiment)||'';
@@ -20,7 +20,7 @@ function create(o){
   if(!active)return;
   const b=board();world.innerHTML=b.groups.map(g=>`<section class="space-group" data-group="${esc(g.id)}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px"><header><button class="group-handle" data-drag-group="${esc(g.id)}" title="Переместить группу">⠿</button><button class="group-name" data-select-group="${esc(g.id)}">${esc(g.title)}</button><button data-group-menu="${esc(g.id)}" title="Изменить группу" aria-label="Изменить группу ${esc(g.title)}">•••</button></header></section>`).join('')+b.cards.map(c=>{
    const topic=index.get(c.ref),lesson=lessons[c.ref];
-   const title=c.type==='article'?'Теория':c.type==='topic'?(topic?.name||c.title):c.title;
+   const title=c.type==='article'?'Теория':c.type==='exercise'?'Практика':c.type==='topic'?(topic?.name||c.title):c.title;
    const body=({topic:topic?.what,article:topic?.what,exercise:lesson?.exercise,example:lesson?.goal,rust:lesson?.rust?.goal})[c.type]??c.body;
    const type={article:'Статья',topic:'Подпространство',example:'Python + PyTorch',rust:'Rust + Burn',exercise:'Практика',note:'Моя заметка'}[c.type];
    return `<article class="space-card type-${c.type}" data-card="${esc(c.id)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"><header><span>${type}</span><button data-drag-card="${esc(c.id)}" aria-label="Переместить ${esc(title)}" title="Перетащи карточку. Стрелки — сдвиг на 20, Alt + стрелки — на 100">⠿</button></header><button class="space-card-body" data-read="${esc(c.id)}"><div class="space-card-heading">${art(c.type==='note'?'projects':c.ref,{decorative:true})}<h2>${c.type==='note'?esc(c.title):rich(title)}</h2></div><p>${c.type==='note'?esc(c.body):rich(body)}</p><span>${c.type==='topic'?'Войти в пространство':'Открыть'} <b>↗</b></span></button></article>`;
@@ -32,6 +32,7 @@ function create(o){
   if(active===id)return true;
   views.set(active||'root',{...getView()});if(remember)stack.push(active);
   active=id;if(!boards[id])boards[id]=C.defaultBoard(index.get(id),lessons);
+  C.ensureLessonCards(boards[id],index.get(id),lessons);
   selection.clear();selectedGroup=null;lasso=false;drag=null;
   $('world').hidden=true;world.hidden=false;$('space-tools').hidden=false;$('space-back').hidden=false;canvas.classList.add('in-space');canvas.classList.remove('lasso-mode');
   $('breadcrumb-current').innerHTML=rich(index.get(id).name);$('space-lasso').setAttribute('aria-pressed','false');
@@ -79,24 +80,37 @@ function create(o){
  };
  const taskTitles=new Set(['Задача','Что будем делать руками','Что покажет этот код','Измени одно условие']);
  const sectionHeading=title=>`<h2>${scope.AtlasUI?.icon(sectionKinds[title])||''}<span>${esc(title)}</span></h2>`;
- function textSection(title,body){return body?`<section class="reading-section${taskTitles.has(title)?' task-brief':''}">${sectionHeading(title)}<p>${rich(body,true)}</p></section>`:'';}
+ function textSection(title,body,path=''){return body?`<section class="reading-section${taskTitles.has(title)?' task-brief':''}">${title?sectionHeading(title):''}${String(body).split(/\n\s*\n/).map((part,i)=>`<p${path==='node.what'?' class="reading-lead"':''}${scope.AtlasContentEdit?.attr(path,i)||''}>${rich(part,true)}</p>`).join('')}</section>`:'';}
 
  function codeBlock(code,id,label='Python',language={cargo:'toml',python:'python',rust:'rust'}[id]||'bash'){
   const highlighted=scope.AtlasUI?.highlight(code,language)||esc(code);
-  return `<div class="code-block"><header><span>${esc(label)}</span><div><button data-copy-code="${id}">Копировать</button><button data-download-code="${id}">Скачать ↓</button></div></header><pre tabindex="0" class="language-${language}" aria-label="Код: ${esc(label)}"><code class="language-${language}">${highlighted}</code></pre></div>`;
+  const create=currentLaunch?.source?.id===id?`<button data-create-file="${id}" title="Копировать команду сохранения файла. Выполни в папке примера; существующий файл будет заменён.">Команда создания файла</button>`:'';
+  return `<div class="code-block"><header><span>${esc(label)}</span><div class="code-actions"><button class="code-icon-button" data-copy-code="${id}" aria-label="Копировать" title="Копировать">${scope.AtlasUI.icon('copy')}</button><button class="code-icon-button" data-download-code="${id}" aria-label="Скачать" title="Скачать">${scope.AtlasUI.icon('download')}</button>${create}</div></header><pre tabindex="0" class="language-${language}" aria-label="Код: ${esc(label)}"><code class="language-${language}">${highlighted}</code></pre></div>`;
  }
  function launchGuide(id,lesson,mode){
   currentLaunch=scope.AtlasLaunch.plan(id,lesson,meta,{language:mode,mode:launchMode,device:launchDevices[mode]});
   const choice=`<div class="launch-choice" role="group" aria-label="Способ запуска">${[['local','На компьютере'],['container','Dev Container']].map(([key,label])=>`<button data-launch-mode="${key}" aria-pressed="${launchMode===key}">${label}</button>`).join('')}</div>`;
   const devices=`<div class="launch-devices" role="group" aria-label="Устройство вычислений">${scope.AtlasLaunch.deviceChoices[mode].map(([key,label])=>`<button data-launch-device="${key}" aria-pressed="${launchDevices[mode]===key}">${label}</button>`).join('')}</div>`;
   const steps=currentLaunch.steps.map(step=>`<li><h3>${esc(step.title)}</h3><p>${rich(step.body,true)}</p>${(step.links||[]).map(([label,url])=>`<a class="setup-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`).join('')}${step.action?`<a class="inline-primary container-open" href="${esc(step.action.url)}" target="_blank" rel="noopener noreferrer">${esc(step.action.label)} ↗</a>`:''}${(step.blocks||[]).map(b=>codeBlock(b.code,b.id,b.label,b.language)).join('')}</li>`).join('');
-  return `<section class="reading-section launch-guide">${sectionHeading('Подготовка и запуск')}${choice}${devices}${currentLaunch.prerequisite?`<p class="setup-prerequisite">${rich(currentLaunch.prerequisite,true)}</p>`:''}${currentLaunch.blocked?`<p class="setup-prerequisite" role="status">${esc(currentLaunch.blocked)}</p>`:''}<ol class="setup-steps">${steps}</ol>${currentLaunch.source?`<details class="container-source"><summary>Посмотреть исходный код этого примера</summary>${codeBlock(currentLaunch.source.code,currentLaunch.source.id,currentLaunch.source.label,currentLaunch.source.language)}</details>`:''}</section>`;
+  return `<section class="reading-section launch-guide">${sectionHeading('Подготовка и запуск')}<div class="launch-controls">${choice}${devices}</div>${currentLaunch.blocked?`<p class="setup-prerequisite" role="status">${esc(currentLaunch.blocked)}</p>`:''}<ol class="setup-steps">${steps}</ol>${currentLaunch.source?`<details class="container-source" open><summary>Исходный код примера</summary>${codeBlock(currentLaunch.source.code,currentLaunch.source.id,currentLaunch.source.label,currentLaunch.source.language)}</details>`:''}</section>`;
  }
 
+ function rememberGuide(){
+  const snapshot=scope.AtlasLessonGuide?.capture($('reader-content'));
+  if(snapshot&&readerCard)guideStates.set(readerCard.ref,snapshot);
+ }
  function read(card,tab){
+  pendingMaterialTab=null;
   if(card.type==='topic'){enter(card.ref);return;}
+  rememberGuide();
   if(readerCard?.ref!==card.ref)exerciseLanguage='python';
-  readerCard=card;const n=index.get(card.ref)||index.get(active),l=lessons[n.id],mode=tab||({example:'python',rust:'rust',exercise:'exercise',note:'note'}[card.type]||'article');
+  readerCard=card;const n=index.get(card.ref)||index.get(active),rootLesson=lessons[n.id],mode=tab||({example:'python',rust:'rust',exercise:'exercise',note:'note'}[card.type]||'article');
+  const chosen=rootLesson?scope.AtlasLaunch.selectExample(n.id,rootLesson,exampleSelections.get(n.id)):null;
+  const l=['python','rust','mlx','exercise'].includes(mode)?chosen?.lesson:rootLesson;
+  const variantIndex=rootLesson?.variants?.findIndex(v=>v.id===chosen?.id)??-1;
+  const lessonPath=variantIndex>=0?'lesson.variants.'+variantIndex+'.lesson':'lesson';
+  const variants=rootLesson?scope.AtlasLaunch.examples(n.id,rootLesson):[];
+  const exampleChoice=variants.length>1?`<div class="lesson-examples launch-choice" role="group" aria-label="Учебный пример">${variants.map(example=>`<button data-lesson-example="${esc(example.id)}" aria-pressed="${chosen.id===example.id}">${esc(example.title)}</button>`).join('')}</div>`:'';
   contentBlocks.clear();
   if(['python','rust','mlx'].includes(mode))exerciseLanguage=mode;
   $('reader-title').innerHTML=art(card.type==='note'?'projects':n.id,{decorative:true})+'<span>'+esc(card.type==='note'?card.title:n.name)+'</span>';
@@ -106,31 +120,32 @@ function create(o){
   else if(mode==='article'){
    const normalize=text=>String(text||'').replace(/\s+/g,' ').trim();
    const sharedExample=normalize(n.tasks)===normalize(n.example);
-   html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div><p class="reading-lead">${rich(n.what,true)}</p>${textSection('Как это устроено',n.how)}${textSection('Где пригодится',sharedExample?'':n.tasks)}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example)}${textSection('Что важно понимать',n.note)}`;
-   if(l)html+=textSection('Что будем делать руками',l.goal);
+   html=`<div class="reading-meta">${esc(n.status||'Область знаний')} · ${l?'Материал и пример':'Путеводитель по области'}</div>${textSection('',n.what,'node.what')}${textSection('Как это устроено',n.how,'node.how')}${textSection('Где пригодится',sharedExample?'':n.tasks,'node.tasks')}${textSection(sharedExample?'Пример применения':'Представь такую задачу',n.example,'node.example')}${textSection('Что важно понимать',n.note,'node.note')}`;
+   if(l)html+=textSection('Что будем делать руками',l.goal,'lesson.goal');
    if(n.children)html+=`<section class="reading-section">${sectionHeading('Темы внутри')}<div class="reading-topics">${n.children.map(c=>`<button data-space-enter="${c.id}"><div class="reading-topic-heading">${art(c.id,{decorative:true})}<b>${rich(c.name)}</b></div><span>${rich(c.what)}</span><span>Открыть пространство ↗</span></button>`).join('')}</div></section>`;
   }else if(l?.guide&&mode==='methods'){
    html=scope.AtlasLessonGuide.render(l.guide);
   }else if(l&&mode==='exercise'){
    const exerciseExample=l[exerciseLanguage]||l;
    const exerciseLabel={python:'Python',rust:'Rust + Burn',mlx:'Python + MLX'}[exerciseLanguage];
-   html=(n.id==='causal'?lessonVisual(n.id)+textSection('Проверь себя','Отключи экономию и выбери «Чаще на сложных». Сравни распределения сложности: почему у групп разное среднее время, хотя эффект инструкции равен нулю? Затем выбери случайное назначение: почему распределения сближаются, но разница времени не становится ровно нулевой? Включи экономию 4 минуты и проверь свой прогноз.'):
-    textSection('Измени одно условие',exerciseExample.exercise)+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol><li>Перед запуском запиши, как, по твоему предположению, изменится результат.</li><li>Во вкладке ${exerciseLabel} запусти исходный вариант и сохрани вывод.</li><li>Внеси указанное изменение, повтори запуск и сравни результаты.</li><li>Объясни различие: чем наблюдение подтверждает или опровергает твоё предположение?</li></ol></section>`)+`<button class="inline-primary" id="exercise-note">Записать гипотезу и результат</button>`;
+   html=exampleChoice+(n.id==='causal'?lessonVisual(n.id)+textSection('Проверь себя','Отключи экономию и выбери «Чаще на сложных». Сравни распределения сложности: почему у групп разное среднее время, хотя эффект инструкции равен нулю? Затем выбери случайное назначение: почему распределения сближаются, но разница времени не становится ровно нулевой? Включи экономию 4 минуты и проверь свой прогноз.'):
+    textSection('Измени одно условие',exerciseExample.exercise,lessonPath+(exerciseLanguage!=='python'&&l[exerciseLanguage]?'.'+exerciseLanguage:'')+'.exercise')+`<section class="reading-section">${sectionHeading('Порядок работы')}<ol><li>Перед запуском запиши, как, по твоему предположению, изменится результат.</li><li>Во вкладке ${exerciseLabel} запусти исходный вариант и сохрани вывод.</li><li>Внеси указанное изменение, повтори запуск и сравни результаты.</li><li>Объясни различие: чем наблюдение подтверждает или опровергает твоё предположение?</li></ol></section>`)+`<button class="inline-primary" id="exercise-note">Записать гипотезу и результат</button>`;
   }else if(l&&(mode==='python'||mode==='rust'||mode==='mlx')){
    const rust=mode==='rust',mlx=mode==='mlx',example=rust?l.rust:mlx?l.mlx:l;
-   html=`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal||l.goal)+launchGuide(n.id,l,mode);
-   html+=textSection('Разбор',example.explanation||l.explanation)+textSection('Ожидаемый результат',example.expected||l.expected)+textSection('Что пример не доказывает',example.limits||l.limits);
-   if(example.parity)html+=textSection('Соответствие вариантов',example.parity);
+   const sourcePath=field=>lessonPath+((rust||mlx)&&example[field]!==undefined?'.'+mode:'')+'.'+field;
+   html=exampleChoice+`<div class="reading-meta">${rust?'Burn '+meta.burn:mlx?'MLX '+meta.mlx:'Python '+meta.python+' · PyTorch '+meta.torch} · ${esc(example.kind||'Учебный эксперимент')}</div>`+textSection('Что покажет этот код',example.goal??l.goal,sourcePath('goal'))+launchGuide(chosen.id,l,mode);
+   html+=textSection('Разбор',example.explanation??l.explanation,sourcePath('explanation'))+textSection('Ожидаемый результат',example.expected??l.expected,sourcePath('expected'))+textSection('Что пример не доказывает',example.limits??l.limits,sourcePath('limits'));
+   if(example.parity)html+=textSection('Соответствие вариантов',example.parity,sourcePath('parity'));
    html+=`<p class="validation-note">${esc(meta.validation||'Версии зафиксированы; результат зависит от данных и случайной инициализации.')} ${meta.validationUrl?`<a href="${esc(meta.validationUrl)}" target="_blank" rel="noopener noreferrer">Посмотреть проверку ↗</a>`:''}</p>`;
   }
   const presentation=scope.ATLAS_PRESENTATION?.[n.id]||{};
   if(card.type!=='note'&&Array.isArray(presentation.sections?.[mode])){
-   html=scope.AtlasContent.renderSections(presentation.sections[mode],{rich,
+   html=scope.AtlasContent.renderSections(presentation.sections[mode],{rich,path:'sections.'+mode,
     code:block=>{const id='content-'+contentBlocks.size;contentBlocks.set(id,block.code||'');return codeBlock(block.code||'',id,block.filename||block.language||'Код',block.language||'python');},
     experiment:id=>id==='causal'?lessonVisual('causal'):''});
   }
   const layout=scope.AtlasContent?.layoutValues(presentation.layout?.[mode]||{})||{};
-  for(const [key,property] of [['readerWidth','--content-reader-width'],['textWidth','--content-text-width'],['chartsColumns','--content-charts-columns']]){
+  for(const [key,property] of [['contentPadding','--content-padding'],['sectionGap','--content-section-gap'],['readerWidth','--content-reader-width'],['textWidth','--content-text-width'],['chartsColumns','--content-charts-columns']]){
    $('reader').style.setProperty(property,layout[key]?String(layout[key])+(key==='chartsColumns'?'':'px'):'');
   }
   if(card.type!=='note'&&mode==='article'){
@@ -142,7 +157,8 @@ function create(o){
   $('reader').classList.toggle('reader-code',codeMode);
   $('reader').classList.toggle('reader-wide',codeMode||(n.id==='causal'&&['exercise','methods'].includes(mode)));
   $('reader-content').innerHTML=html;$('reader-content').scrollTop=0;$('reader').dataset.tab=mode;if(!$('reader').open)$('reader').showModal();hideTerm();
-  scope.ATLAS_EDITORIAL?.update({topicId:n.id,title:n.name,tab:mode,revision:presentation.revision||'0'});
+  scope.AtlasLessonGuide?.restore($('reader-content'),guideStates.get(n.id));
+  scope.ATLAS_EDITORIAL?.update({topicId:n.id,title:n.name,tab:mode,view:lessonPath+':'+exerciseLanguage,revision:presentation.revision||'0'});
   scope.ATLAS_CONTENT_CLIENT?.refresh();
  }
  function refreshLaunch(){
@@ -150,8 +166,9 @@ function create(o){
   const codeScroll=[...content.querySelectorAll('pre')].map(el=>({left:el.scrollLeft,top:el.scrollTop}));
   const openDetails=[...content.querySelectorAll('details')].map(el=>el.open);
   const guideView=content.querySelector('.causal-guide')?.dataset.guideCurrent;
-  const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice','guideView'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
-  read(readerCard,$('reader').dataset.tab);
+  const focused=document.activeElement,focusKey=['causalSaving','causalAssignment','launchMode','launchDevice','lessonExample','guideView'].find(key=>focused?.dataset?.[key]!==undefined),focusValue=focusKey?focused.dataset[focusKey]:null;
+  const pending=pendingMaterialTab;
+  read(readerCard,$('reader').dataset.tab);pendingMaterialTab=pending;
   if(guideView!==undefined)scope.AtlasLessonGuide.selectView(content,guideView);
   const updated=content.querySelector('.lesson-charts');if(updated)updated.scrollLeft=horizontal;
   [...content.querySelectorAll('pre')].forEach((el,i)=>{if(codeScroll[i]){el.scrollLeft=codeScroll[i].left;el.scrollTop=codeScroll[i].top;}});
@@ -159,7 +176,7 @@ function create(o){
   content.scrollTop=scroll;
   if(focusKey)[...content.querySelectorAll('button')].find(button=>button.dataset[focusKey]===focusValue)?.focus({preventScroll:true});
  }
- function closeReader(){hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
+ function closeReader(){rememberGuide();pendingMaterialTab=null;hideTerm();if($('reader').open)$('reader').close();readerCard=null;}
  function codeFor(id){return contentBlocks.has(id)?contentBlocks.get(id):currentLaunch?scope.AtlasLaunch.findBlock(currentLaunch,id)?.code||'':'';}
 
  function editor(mode,id){
@@ -179,7 +196,7 @@ function create(o){
   $('note-editor').close();save();render();if(readerCard?.type==='note'){const c=board().cards.find(c=>c.id===readerCard.id);if(c)read(c);}edit=null;
  });
  $('editor-delete').onclick=()=>{checkpoint();if(edit.mode==='group')C.removeGroup(board(),edit.id);else{const c=board().cards.find(c=>c.id===edit.id);board().cards=board().cards.filter(c=>c.id!==edit.id);if(c?.groupId)C.fitGroup(board(),c.groupId);closeReader();}$('note-editor').close();edit=null;selection.clear();selectedGroup=null;save();render();toast('Удалено. Можно отменить кнопкой ↶.');};
- $('editor-cancel').onclick=()=>$('note-editor').close();$('reader-close').onclick=closeReader;$('reader').addEventListener('close',hideTerm);$('reader-content').addEventListener('scroll',hideTerm);$('space-back').onclick=back;
+ $('editor-cancel').onclick=()=>$('note-editor').close();$('reader').addEventListener('close',hideTerm);$('reader-content').addEventListener('scroll',hideTerm);$('space-back').onclick=back;
  $('space-note').onclick=()=>editor('note');$('space-group').onclick=()=>editor('group');
  $('space-lasso').onclick=()=>{lasso=!lasso;$('space-lasso').setAttribute('aria-pressed',String(lasso));canvas.classList.toggle('lasso-mode',lasso);if(lasso)o.selectTool();};
  $('space-undo').onclick=()=>{const last=undo.pop();if(!last)return;boards[last.id]=last.board;if(last.id===active){selection.clear();selectedGroup=null;render();}save();$('space-undo').disabled=!undo.length;};
@@ -199,16 +216,36 @@ function create(o){
    if(b.dataset.causalSaving!==undefined&&[0,4,8].includes(Number(b.dataset.causalSaving))){causalExperiment.minutesSaved=Number(b.dataset.causalSaving);refreshLaunch();}
    if(['biased','random'].includes(b.dataset.causalAssignment)){causalExperiment.assignment=b.dataset.causalAssignment;refreshLaunch();}
   }
+  if(b.dataset.lessonExample&&readerCard){
+   const id=readerCard.ref,lesson=lessons[id];
+   if(lesson&&scope.AtlasLaunch.examples(id,lesson).some(example=>example.id===b.dataset.lessonExample)){
+    exampleSelections.set(id,b.dataset.lessonExample);refreshLaunch();
+   }
+  }
   if(b.dataset.launchMode&&readerCard){launchMode=b.dataset.launchMode==='container'?'container':'local';refreshLaunch();}
   if(b.dataset.launchDevice&&readerCard){const mode=$('reader').dataset.tab;if(scope.AtlasLaunch.deviceChoices[mode]?.some(([key])=>key===b.dataset.launchDevice)){launchDevices[mode]=b.dataset.launchDevice;refreshLaunch();}}
-  if(b.id==='exercise-note'){const n=index.get(readerCard?.ref||active),l=lessons[n.id],example=l[exerciseLanguage]||l;closeReader();editor('note');$('editor-title').value='Опыт: '+n.name;$('editor-body').value='Мой вопрос\n'+example.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
-  if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>{b.textContent='Скопировано ✓';setTimeout(()=>b.textContent='Копировать',1800);},()=>{b.textContent='Используй «Скачать»';});}else b.textContent='Используй «Скачать»';}
-  if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':id==='rust'?'main.rs':['python','mlx'].includes(id)?filename:id+'.txt',codeFor(id));}
+  if(b.id==='exercise-note'){const n=index.get(readerCard?.ref||active),l=scope.AtlasLaunch.selectExample(n.id,lessons[n.id],exampleSelections.get(n.id)).lesson,example=l[exerciseLanguage]||l;closeReader();editor('note');$('editor-title').value='Опыт: '+n.name;$('editor-body').value='Мой вопрос\n'+example.exercise+'\n\nЧто изменил\n\nЧто получилось\n\nВывод\n';}
+  if(b.dataset.copyCode){if(navigator.clipboard){navigator.clipboard.writeText(codeFor(b.dataset.copyCode)).then(()=>toast('Скопировано'),()=>toast('Не удалось скопировать. Используй кнопку скачивания.'));}else toast('Копирование недоступно. Используй кнопку скачивания.');}
+  if(b.dataset.createFile&&currentLaunch){
+   if(navigator.clipboard)navigator.clipboard.writeText(scope.AtlasLaunch.createFileCommand(currentLaunch,b.dataset.createFile)).then(()=>toast('Команда скопирована. Выполни её в папке примера.'),()=>toast('Не удалось скопировать. Скачай файл кнопкой рядом.'));
+   else toast('Копирование недоступно. Скачай файл кнопкой рядом.');
+  }
+  if(b.dataset.downloadCode){const id=b.dataset.downloadCode;const filename=scope.AtlasLaunch.findBlock(currentLaunch,id)?.label.split('/').pop();download(id==='cargo'?'Cargo.toml':['python','mlx','rust'].includes(id)?filename:id+'.txt',codeFor(id));}
   if(b.dataset.addTopic){checkpoint();const n=index.get(b.dataset.addTopic),v=getView(),c=C.addNote(board(),n.name,n.what,{x:(canvas.clientWidth/2-v.x)/v.scale-180,y:(canvas.clientHeight/2-v.y)/v.scale-115},selectedGroup);c.type='topic';c.ref=n.id;$('topic-picker').close();save();render();}
  });
  canvas.addEventListener('click',e=>{if(active&&suppressClick&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();}},true);
  document.addEventListener('keydown',e=>{if(!active||e.target.closest('input,textarea,select,dialog')||e.shiftKey)return;const moves={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]},handle=e.target.closest('[data-drag-card],[data-drag-group]');if(handle&&moves[e.key]){e.preventDefault();checkpoint();const [dx,dy]=moves[e.key].map(v=>v*(e.altKey?5:1));if(handle.dataset.dragGroup)C.moveGroup(board(),handle.dataset.dragGroup,dx,dy);else{const c=board().cards.find(c=>c.id===handle.dataset.dragCard);c.x+=dx;c.y+=dy;if(c.groupId)C.fitGroup(board(),c.groupId);}const cardId=handle.dataset.dragCard,groupId=handle.dataset.dragGroup;save();render();[...world.querySelectorAll('[data-drag-card],[data-drag-group]')].find(x=>cardId?x.dataset.dragCard===cardId:x.dataset.dragGroup===groupId)?.focus();}});
- return {enter,leave,back,fit,pointerDown,pointerMove,pointerUp,get active(){return active;},refreshContent(){render();if(active)$('breadcrumb-current').innerHTML=rich(index.get(active)?.name||'');if(readerCard&&readerCard.type!=='note')refreshLaunch();},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
+ function openMaterial(id,tab='article',anchor={}){
+  if(!index.has(id))return;
+  if(active!==id)enter(id,{hash:false});
+  const lesson=lessons[id],tabs=['article',...(lesson?['python','exercise']:[]),...(lesson?.guide?['methods']:[]),...(lesson?.rust?['rust']:[]),...(lesson?.mlx?['mlx']:[])];
+  read({id:'article:'+id,type:'article',ref:id},tabs.includes(tab)?tab:'article');
+  if(tab==='exercise'&&['python','rust','mlx'].includes(anchor.exerciseLanguage)&&(anchor.exerciseLanguage==='python'||lesson?.[anchor.exerciseLanguage])){
+   exerciseLanguage=anchor.exerciseLanguage;read(readerCard,'exercise');
+  }
+  if(!tabs.includes(tab)&&['methods','python','rust','mlx','exercise'].includes(tab)&&!scope.ATLAS_PRESENTATION?.[id]?.revision)pendingMaterialTab={id,tab,anchor};
+ }
+ return {enter,leave,back,fit,openMaterial,pointerDown,pointerMove,pointerUp,get active(){return active;},refreshContent(){if(active&&C.ensureLessonCards(board(),index.get(active),lessons))save();render();if(active)$('breadcrumb-current').innerHTML=rich(index.get(active)?.name||'');if(readerCard&&readerCard.type!=='note'){const pending=pendingMaterialTab;if(pending&&readerCard.ref===pending.id&&scope.ATLAS_PRESENTATION?.[pending.id]?.revision)openMaterial(pending.id,pending.tab,pending.anchor);else refreshLaunch();}},updateView(v){if(active)world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.scale})`;},reset(){if(drag){drag=null;render();save();}}};
 }
 scope.AtlasSpaces={create};
 })(window);

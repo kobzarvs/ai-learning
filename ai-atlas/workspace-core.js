@@ -11,7 +11,7 @@ function defaultBoard(node,lessons={}){
  else{
   add('python:'+node.id,'example',node.id,'Python · практический пример','Открыть код, команду запуска и разбор результата.',540,90);
   if(lessons[node.id]?.rust)add('rust:'+node.id,'rust',node.id,'Rust + Burn · тот же принцип','Пример для актуальной версии Burn с командой запуска.',1000,90);
-  add('exercise:'+node.id,'exercise',node.id,'Мой первый эксперимент',lessons[node.id]?.exercise||'Запиши ожидаемый результат, измени одно условие и сравни ответы.',80,470);
+  add('exercise:'+node.id,'exercise',node.id,'Практика',lessons[node.id]?.exercise||'Запиши ожидаемый результат, измени одно условие и сравни ответы.',80,470);
  }
  return {version:1,layoutVersion:2,cards,groups:[]};
 }
@@ -26,6 +26,12 @@ function normalizeBoard(raw,fallback){
  const groups=raw.groups.filter(g=>g&&typeof g.id==='string'&&!groupIds.has(g.id)&&(groupIds.add(g.id),true)).slice(0,200).map(g=>({id:g.id,title:text(g.title,'Группа'),x:number(g.x),y:number(g.y),w:Math.max(400,number(g.w,800)),h:Math.max(260,number(g.h,520))}));
  const validGroups=new Set(groups.map(g=>g.id));for(const c of cards)if(!validGroups.has(c.groupId))c.groupId=null;
  return upgradeLayout({version:1,layoutVersion:raw.layoutVersion||1,cards,groups});
+}
+function ensureLessonCards(board,node,lessons){
+ if(node.children||!lessons[node.id]?.rust||board.cards.some(c=>c.type==='rust'&&c.ref===node.id))return false;
+ const card=defaultBoard(node,lessons).cards.find(c=>c.type==='rust');
+ card.y=Math.max(90,...board.cards.map(c=>c.y+c.h+50),...board.groups.map(g=>g.y+g.h+50));
+ card.x=80;board.cards.push(card);return true;
 }
 // One-time expansion for 20px typography. Relative arrangement and all text
 // survive; frame bounds are refitted around their existing member cards.
@@ -53,6 +59,6 @@ function addNote(board,title,body,point,groupId=null){const g=board.groups.find(
  board.cards.push(c);if(g)fitGroup(board,g.id);return c;
 }
 function parseImport(source){const value=JSON.parse(source);if(value?.version!==1||!value.boards||typeof value.boards!=='object'||Array.isArray(value.boards))throw Error('Это не файл рабочих пространств Atlas.');const boards={};for(const [id,board] of Object.entries(value.boards)){if(['__proto__','prototype','constructor'].includes(id))continue;if(!board||!Array.isArray(board.cards)||!Array.isArray(board.groups))throw Error('Повреждена структура холста '+id);if(board.cards.length>1000||board.groups.length>200)throw Error('Слишком много карточек или групп на холсте '+id);boards[id]=normalizeBoard(board,{version:1,cards:[],groups:[]});}return{version:1,boards};}
-const api={uid,upgradeLayout,defaultBoard,normalizeBoard,bounds,selectRect,groupCards,moveGroup,fitGroup,removeGroup,addNote,parseImport};
+const api={uid,upgradeLayout,defaultBoard,normalizeBoard,ensureLessonCards,bounds,selectRect,groupCards,moveGroup,fitGroup,removeGroup,addNote,parseImport};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.AtlasWorkspaceCore=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1415,3 +1415,10 @@ for feature in range(3):
     broken[:, feature] = broken[torch.randperm(100), feature]
     print('Признак', feature, 'падение качества:', baseline-accuracy(model, broken, y[300:]))
 ''', 'Перемешивание первого признака обычно вредит сильнее всего; третий почти не влияет, потому что не участвовал в правильном ответе.', 'Сделай третий признак копией первого. Почему важность каждого по отдельности может измениться?', 'Перемешивание сохраняет значения признака, но разрушает связь с конкретным объектом. Падение качества показывает, насколько модель полагалась на эту связь.', 'Оценка важности перемешиванием признака показывает, насколько модель полагается на него в выбранных данных. Она не доказывает причинное влияние признака, особенно при сильных корреляциях.')
+
+# Extra runnable examples live inside the game-agent lesson, not as new map topics.
+from game_catalog import GAME_LESSONS
+for topic, lesson in GAME_LESSONS.items():
+    if topic in LESSONS:
+        raise ValueError('Duplicate lesson: ' + topic)
+    LESSONS[topic] = lesson

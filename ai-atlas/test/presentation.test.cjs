@@ -77,3 +77,8 @@ test('larger cards migrate existing notes and groups once, preserving their cont
  for(const c of next.cards){assert.ok(g.x<c.x&&g.y<c.y&&g.x+g.w>c.x+c.w&&g.y+g.h>c.y+c.h);}
  assert.deepEqual(Workspace.normalizeBoard(next,next),next);assert.deepEqual(Workspace.parseImport(JSON.stringify({version:1,boards:{cnn:next}})).boards.cnn,next);
 });
+
+test('Escape uses the same cleanup as backdrop dismissal',()=>{
+ const d=dialog();let cleaned=0;UI.bindDismiss(d,{close(){cleaned++;d.close();}});
+ const event=d.fire('cancel');assert.equal(d.open,false);assert.equal(cleaned,1);assert.equal(event.defaultPrevented,true);
+});
